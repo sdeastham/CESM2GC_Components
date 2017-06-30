@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+
+<namelist_defaults>
+
+<start_ymd>19790101</start_ymd>
+
+<!-- Solar data from NRL -->
+<solar_data_file>atm/cam/solar/SolarForcingCMIP6_18500101-22991231_c160830.nc</solar_data_file>
+
+<!-- Kp and F10.7 -->
+<solar_parms_file>atm/cam/solar/SolarForcingCMIP6_18500101-22991231_c160830.nc</solar_parms_file>
+
+<!--Species IC -->
+<ncdata dyn="fv"  hgrid="0.9x1.25">atm/waccm/ic/f.e15.FWHIST.cesm1_5_alpha07d_misc.TS1MLT.vbs.vector.f09_f09.001.cam.i.1991-01-01-00000_c160913.nc</ncdata>
+<ncdata dyn="fv"  hgrid="1.9x2.5" >atm/waccm/ic/f.e15.FWmaAMIP.f19_f19.misc08_cam5_4_81.003.cam.i.1980-01-01-00000_c160928.nc</ncdata>
+<ncdata dyn="fv"  hgrid="4x5"     >atm/waccm/ic/f2000.waccm-mam3_4x5_L70.cam2.i.0017-01-01.c121113.nc</ncdata>
+
+<micro_do_sb_physics>.true.</micro_do_sb_physics>
+
+<clubb_gamma_coef>0.29D0</clubb_gamma_coef>
+
+<cldfrc2m_rhminis>1.0D0</cldfrc2m_rhminis>
+<nucleate_ice_strat>1.0D0</nucleate_ice_strat>
+<nucleate_ice_subgrid>-1.0D0</nucleate_ice_subgrid>
+<nucleate_ice_use_troplev>.true.</nucleate_ice_use_troplev>
+
+<do_tms hgrid="0.9x1.25">.false.</do_tms>
+<do_beljaars hgrid="0.9x1.25">.true.</do_beljaars>  
+<bnd_topo hgrid="0.9x1.25">atm/cam/topo/fv_0.9x1.25_nc3000_Nsw042_Nrs008_Co060_Fi001_ZR_160505.nc</bnd_topo>
+<bnd_topo hgrid="1.9x2.5" >atm/cam/topo/fv_1.9x2.5_nc3000_Nsw084_Nrs016_Co120_Fi001_ZR_061116.nc</bnd_topo>
+<use_gw_oro hgrid="0.9x1.25">.false.</use_gw_oro>
+<use_gw_rdg_beta hgrid="0.9x1.25">.true.</use_gw_rdg_beta>
+
+<zmconv_num_cin>1</zmconv_num_cin>
+ 
+<effgw_beres_dp>0.5D0</effgw_beres_dp>
+
+<clubb_do_liqsupersat>.true.</clubb_do_liqsupersat>
+
+
+<!-- LBC, UBC Files -->
+<flbc_type>'SERIAL'</flbc_type>
+<flbc_list>'CO2','CH4','N2O','CFC11','CFC12'</flbc_list>
+
+<!-- QBO settings -->
+<qbo_use_forcing >.true.</qbo_use_forcing>
+<qbo_use_forcing hgrid="0.9x1.25">.false.</qbo_use_forcing>
+<qbo_cyclic>.false.</qbo_cyclic>
+<qbo_forcing_file>atm/waccm/qbo/qbocoefficients_c091230.nc</qbo_forcing_file>
+
+<!-- emissions -->
+
+<!-- External forcing -->
+<ext_frc_specifier hgrid="1.9x2.5">
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1960-2008/IPCC_emissions_volc_SO2_1850-2100_1.9x2.5_c141106.nc',
+  'bc_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_bc_elev_1850-2300_c20150128.nc',
+  'num_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a1_elev_1850-2300_c20150128.nc',
+  'num_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a2_elev_1850-2300_c20150128.nc',
+  'num_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_elev_1850-2005_c150205.nc',
+  'pom_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_pom_elev_1850-2300_c20150128.nc',
+  'so4_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a1_elev_1850-2300_c20150128.nc',
+  'so4_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a2_elev_1850-2300_c20150128.nc',
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/stratvolc/GlobalVolcSO2Emis1850-2016_VolcanEESMv1.0noVEI_Chi18-20km_Pin10.0Tg_18-20km_2deg_c161031.nc'
+</ext_frc_specifier>
+<ext_frc_specifier>
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1960-2008/IPCC_emissions_volc_SO2_1850-2100_1.9x2.5_c141106.nc',
+  'bc_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_bc_elev_1850-2300_c20150128.nc',
+  'num_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a1_elev_1850-2300_c20150128.nc',
+  'num_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a2_elev_1850-2300_c20150128.nc',
+  'num_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_elev_1850-2005_c150205.nc',
+  'pom_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_pom_elev_1850-2300_c20150128.nc',
+  'so4_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a1_elev_1850-2300_c20150128.nc',
+  'so4_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a2_elev_1850-2300_c20150128.nc',
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/stratvolc/GlobalVolcSO2Emis1850-2016_VolcanEESMv1.0noVEI_Chi18-20km_Pin10.0Tg_18-20km_1deg_c161031.nc'
+</ext_frc_specifier>
+<ext_frc_type>INTERP_MISSING_MONTHS</ext_frc_type>
+
+
+<!-- Surface emissions -->
+<srf_emis_specifier>
+  'DMS    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_DMS_surface_1850-2100_1.9x2.5_c130814.nc',
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_SO2_surface_1850-2100_1.9x2.5_c130814.nc',
+  'SOAG   -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_SOAG_surface_1850-2100_1.9x2.5_c150128.nc',
+  'bc_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_bc_surf_1850-2300_c20150128.nc',
+  'num_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a1_surf_1850-2300_c20150128.nc',
+  'num_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_num_a2_surf_1850-2300_c20150128.nc',
+  'num_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_surf_1850-2005_c150205.nc',
+  'pom_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_pom_surf_1850-2300_c20150128.nc',
+  'so4_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a1_surf_1850-2300_c20150128.nc',
+  'so4_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/RCP60_mam3_so4_a2_surf_1850-2300_c20150128.nc'
+</srf_emis_specifier>
+<srf_emis_type>INTERP_MISSING_MONTHS</srf_emis_type>
+
+<!-- History Files -->
+<do_circulation_diags>.true.</do_circulation_diags>
+<history_chemistry>.true.</history_chemistry>
+
+<mfilt>  1, 73, 73 </mfilt>
+<nhtfrq> 0,-24,-24 </nhtfrq>
+
+<!-- Monthly -->
+<fincl1>
+  'AOA1', 'AOA2', 'CH4', 'H2O', 'N2O', 'CFC11', 'CFC12', 'CFC11STAR', 'UTGWORO', 'VTGWORO', 'UTGWSPEC', 'VTGWSPEC', 'BUTGWSPEC',
+  'AODVISst', 'EXTINCT','EXTxASYM', 'AODUV', 'AODUVst', 'AODNIR', 'AODNIRst'
+</fincl1>
+
+<!-- Daily -->
+<fincl2>
+ 'U','V','T','OMEGA','PS','Z500','Z3','PRECT','U200','V200'
+</fincl2>
+<fincl3>
+ 'MSKtem', 'PS', 'PSL', 'VTHzm', 'UVzm', 'UWzm', 'Uzm', 'Vzm', 'THzm', 'Wzm', 'PHIS', 'UTGWORO','UTGWSPEC', 'BUTGWSPEC'
+</fincl3>
+
+<!-- Reduce output size by removing some variables. -->
+<fexcl1>
+ 'BTAUN', 'BTAUS', 'BTAUE', 'BTAUW', 'BTAUNET', 'BUTEND1', 'BUTEND2', 'BUTEND3', 'BUTEND4', 'BUTEND5', 'BVTGWSPEC',
+ 'MAXQ0', 'HDEPTH', 'NETDT', 'TAUN', 'TAUS', 'TAUE', 'TAUW', 'TAUGWX', 'TAUGWY', 'UTEND1', 'UTEND2', 'UTEND3', 
+ 'UTEND4', 'UTEND5', 'FRONTGF', 'FRONTGFA', 'EKGW', 'QNO', 'QRLNLTE', 'QRL_TOT', 'DUV', 'DVV', 'TTPXMLC'
+</fexcl1>
+
+</namelist_defaults>

@@ -1,0 +1,6 @@
+-spmd -smp
+-chem waccm_ma
+-dyn fv
+-res 4x5
+-phys cam4
+-s

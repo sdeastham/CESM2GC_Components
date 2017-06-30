@@ -1,0 +1,7 @@
+-spmd -nosmp
+-phys cam4
+-chem waccm_ma
+-dyn se
+-hgrid ne5np4
+-debug
+-s

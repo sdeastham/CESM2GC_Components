@@ -1,0 +1,12 @@
+-spmd -nosmp
+-dyn fv
+-res 10x15
+-debug
+-phys spcam_sam1mom
+-rad camrt
+-chem trop_bam
+-spcam_nx 32
+-spcam_ny 1
+-spcam_dx 4000
+-spcam_dt 20
+-s

@@ -1,0 +1,8 @@
+-spmd -smp
+-chem waccm_mad_mam4
+-dyn fv
+-nlev 88
+-offline_dyn
+-res 1.9x2.5
+-phys cam5.4
+-s

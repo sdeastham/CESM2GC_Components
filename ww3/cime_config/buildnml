@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+
+"""Namelist creator for ww3
+"""
+
+# Typically ignore this.
+# pylint: disable=invalid-name
+
+# Disable these because this is our standard setup
+# pylint: disable=wildcard-import,unused-wildcard-import,wrong-import-position
+
+import os, shutil, sys, glob
+
+CIMEROOT = os.environ.get("CIMEROOT")
+if CIMEROOT is None:
+    raise SystemExit("ERROR: must set CIMEROOT environment variable")
+sys.path.append(os.path.join(CIMEROOT, "scripts", "Tools"))
+
+from standard_script_setup import *
+from CIME.case import Case
+from CIME.nmlgen import NamelistGenerator
+from CIME.utils import expect
+from CIME.utils import handle_standard_logging_options
+from CIME.utils import setup_standard_logging_options
+from CIME.buildnml import create_namelist_infile
+
+logger = logging.getLogger(__name__)
+
+###############################################################################
+def _parse_input(argv):
+###############################################################################
+
+    if "--test" in argv:
+        test_results = doctest.testmod(verbose=True)
+        sys.exit(1 if test_results.failed > 0 else 0)
+
+    parser = argparse.ArgumentParser()
+
+    setup_standard_logging_options(parser)
+
+    parser.add_argument("caseroot",
+                        help="case directory")
+
+    args = parser.parse_args()
+
+    handle_standard_logging_options(args)
+
+    return args.caseroot
+
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
+####################################################################################
+def _create_namelists(case):
+####################################################################################
+    """Write out the namelist for this component."""
+
+    srcroot = case.get_value("SRCROOT")
+    caseroot = case.get_value("CASEROOT")
+
+    #----------------------------------------------------
+    # Construct the namelist generator 
+    #----------------------------------------------------
+    namelist_xml_dir = os.path.join(srcroot, "components", "ww3", "cime_config")
+    definition_file = [os.path.join(namelist_xml_dir, "namelist_definition_ww3.xml")]
+    nmlgen = NamelistGenerator(case, definition_file)
+
+    #----------------------------------------------------
+    # Initialize namelist defaults 
+    #----------------------------------------------------
+    config = {}
+    runtype = case.get_value("RUN_TYPE")
+    config["runtype"] = runtype
+    infile = []
+    nmlgen.init_defaults(infile, config)
+
+    #----------------------------------------------------
+    # Write output namelist
+    #----------------------------------------------------
+    namelist_file = os.path.join(caseroot, "CaseDocs", "wav_in")
+    nmlgen.write_output_file(namelist_file, data_list_path=None, groups=["ww3_inparm"])
+
+    # write diagnostic info
+    logger.debug("ww3 initial conditions file is %s" %nmlgen.get_value("initfile"))
+
+    #----------------------------------------------------
+    # Prestage necessary files to rundir
+    #----------------------------------------------------
+    rundir = case.get_value("RUNDIR")
+    din_loc_root = case.get_value("DIN_LOC_ROOT")
+
+    file1 = os.path.join(din_loc_root,"wav","ww3","core2_G4_wns_30min_20000601_to_05.nc")
+    file2 = os.path.join(rundir,"wind.ww3")
+    shutil.copy(file1, file2)
+            
+    file1 = os.path.join(din_loc_root,"wav","ww3","G4L1.mod_def.ww3.121031")
+    file2 = os.path.join(rundir,"mod_def.ww3")
+    shutil.copy(file1, file2)
+
+###############################################################################
+def _main_func():
+###############################################################################
+
+    # Build the component namelist 
+
+    caseroot = _parse_input(sys.argv)
+
+    with Case(caseroot) as case:
+        ninst = case.get_value("NINST_WAV")
+        if ninst > 1:
+            expect(False, "WW3 does not have multi instance functionality yet")
+
+        _create_namelists(case)
+
+        # copy namelist files to rundir
+        # TODO: need to add multi-instance support
+        rundir = case.get_value("RUNDIR")
+        file1 = os.path.join(caseroot, "CaseDocs", "wav_in")
+        file2 = os.path.join(rundir, "wav_in")
+        shutil.copy(file1, file2)
+
+###############################################################################
+
+if __name__ == "__main__":
+    _main_func()
+

@@ -1,0 +1,239 @@
+<?xml version="1.0"?>
+
+<namelist_defaults>
+
+<start_ymd>00010101</start_ymd>
+
+<!-- Solar data -->
+<solar_data_file>atm/cam/solar/SolarForcing1995-2005avg_c160929.nc</solar_data_file>
+<solar_data_ymd>20000101</solar_data_ymd>
+<solar_data_type>FIXED</solar_data_type>
+
+<!-- Kp and F10.7 -->
+<solar_parms_file>atm/cam/solar/SolarForcing1995-2005avg_c160929.nc</solar_parms_file>
+
+<!-- Energetic Particle Precipitation -->
+<epp_all_filepath>atm/cam/solar/SolarForcing1995-2005avg_c160929.nc</epp_all_filepath>
+<epp_all_varname >epp_ion_rates</epp_all_varname>
+
+<!--Species IC -->
+<ncdata dyn="fv"  hgrid="1.9x2.5" >atm/waccm/ic/f.e13.FWTC5L45CCMIR1.f19_g16.beta17_stratmam.13.histSST.cam.i.2000-01-01-00000.nc</ncdata>
+<ncdata dyn="fv"  hgrid="4x5"     >atm/waccm/ic/f2000.waccm-mam3_4x5_L70.cam2.i.0017-01-01.c121113.nc</ncdata>
+
+<micro_do_sb_physics>.true.</micro_do_sb_physics>
+
+<clubb_gamma_coef>0.29D0</clubb_gamma_coef>
+
+<cldfrc2m_rhminis>1.0D0</cldfrc2m_rhminis>
+<nucleate_ice_strat>1.0D0</nucleate_ice_strat>
+<nucleate_ice_subgrid>-1.0D0</nucleate_ice_subgrid>
+<nucleate_ice_use_troplev>.true.</nucleate_ice_use_troplev>
+
+<do_tms hgrid="0.9x1.25">.false.</do_tms>
+<do_beljaars hgrid="0.9x1.25">.true.</do_beljaars>  
+<bnd_topo hgrid="0.9x1.25">atm/cam/topo/fv_0.9x1.25_nc3000_Nsw042_Nrs008_Co060_Fi001_ZR_160505.nc</bnd_topo>
+<use_gw_oro hgrid="0.9x1.25">.false.</use_gw_oro>
+<use_gw_rdg_beta hgrid="0.9x1.25">.true.</use_gw_rdg_beta>
+
+<zmconv_num_cin>1</zmconv_num_cin>
+ 
+<effgw_beres_dp>0.5D0</effgw_beres_dp>
+
+<clubb_do_liqsupersat>.true.</clubb_do_liqsupersat>
+
+<lght_no_prd_factor dyn="fv" hgrid="0.9x1.25">1.5</lght_no_prd_factor>
+
+<!-- LBC, UBC Files -->
+<flbc_type>CYCLICAL</flbc_type>
+<flbc_cycle_yr>2000</flbc_cycle_yr>
+
+<!-- Upper Boundary -->
+<tgcm_ubc_file>atm/waccm/ub/tgcm_ubc.2000.c100203.nc</tgcm_ubc_file>
+<tgcm_ubc_type>CYCLICAL</tgcm_ubc_type>
+
+<!-- nudge QBO at low resolution --> 
+<qbo_use_forcing hgrid="10x15"   >.true.</qbo_use_forcing>
+<qbo_use_forcing hgrid="4x5"     >.true.</qbo_use_forcing>
+<qbo_use_forcing hgrid="1.9x2.5" >.true.</qbo_use_forcing>
+<qbo_use_forcing>.false.</qbo_use_forcing>
+
+<!-- turn off prescribed volcanic aerosol heating, now handled by MAM sulfates -->
+<prescribed_strataero_feedback>.false.</prescribed_strataero_feedback> 
+
+<!-- emissions -->
+
+<megan_factors_file>atm/cam/chem/trop_mozart/emis/megan21_emis_factors_78pft_c20161108.nc</megan_factors_file>
+<megan_mapped_emisfctrs>.false.</megan_mapped_emisfctrs>
+<megan_specifier>
+ 'ISOP = isoprene',
+ 'MTERP = pinene_a + carene_3 + thujene_a + 2met_styrene + cymene_p + cymene_o + terpinolene + bornene + fenchene_a + ocimene_al + pinene_b + sabinene + camphene + limonene + phellandrene_a + terpinene_g + terpinene_a + phellandrene_b +  myrcene + ocimene_t_b + ocimene_c_b',
+ 'BCARY = caryophyllene_b + bergamotene_a + bisabolene_b + farnescene_b + humulene_a',
+ 'CH3OH = methanol',
+ 'C2H5OH = ethanol',
+ 'CH2O = formaldehyde',
+ 'CH3CHO = acetaldehyde',
+ 'CH3COOH = acetic_acid',
+ 'CH3COCH3 = acetone',
+ 'HCOOH = formic_acid',
+ 'HCN = hydrogen_cyanide',
+ 'CO = carbon_monoxide',
+ 'C2H6 = ethane',
+ 'C2H4 = ethene',
+ 'C3H8 = propane',
+ 'C3H6 = propene',
+ 'BIGALK = pentane + hexane + heptane + tricyclene',
+ 'BIGENE = butene',
+ 'TOLUENE = toluene'
+</megan_specifier>
+
+<ext_frc_type>CYCLICAL</ext_frc_type>
+<ext_frc_cycle_yr>2000</ext_frc_cycle_yr>
+<ext_frc_specifier>
+  'NO2    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1960-2008/CCMI_emissions_aircraft_NO2_1850-2100_1.9x2.5_c130314.nc',
+  'SO2    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1960-2008/IPCC_emissions_volc_SO2_1850-2100_1.9x2.5_c130426cycle.nc',
+  'bc_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_elev_1850-2005_c090804.nc',
+  'num_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a1_elev_1850-2005_c150205.nc',
+  'num_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_elev_1850-2005_c090804.nc',
+  'num_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_elev_1850-2005_c150205.nc',
+  'pom_a4 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_elev_1850-2005_c130424.nc',
+  'so4_a1 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_elev_1850-2005_c090804.nc',
+  'so4_a2 -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_elev_1850-2005_c090804.nc',
+  'SVOC   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_SVOCbb_elev_1850-2005_c160315.nc',
+</ext_frc_specifier>
+
+<srf_emis_type>CYCLICAL</srf_emis_type>
+<srf_emis_cycle_yr>2000</srf_emis_cycle_yr>
+<srf_emis_specifier>
+  'CH2O     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH2O_surface_1850-2100_1.9x2.5_c130806.nc',
+  'CO       -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CO_surface_woBiog_1850-2100_1.9x2.5_c130806.nc',
+  'NO       -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_NO_surface_1850-2100_1.9x2.5_c150529.nc',
+  'BIGALK   -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_BIGALK_surface_1850-2100_1.9x2.5_c130814.nc',
+  'BIGENE   -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_BIGENE_surface_1850-2100_1.9x2.5_c130814.nc',
+  'C2H2     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C2H2_surface_1850-2100_1.9x2.5_c130814.nc',
+  'C2H4     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C2H4_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'C2H5OH   -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C2H5OH_surface_1850-2100_1.9x2.5_c130814.nc',
+  'C2H6     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C2H6_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'C3H6     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C3H6_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'C3H8     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_C3H8_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'CH3CHO   -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH3CHO_surface_1850-2100_1.9x2.5_c130814.nc',
+  'CH3OH    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH3OH_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'MEK      -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_MEK_surface_1850-2100_1.9x2.5_c130814.nc',
+  'TOLUENE  -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_TOLUENE_surface_1850-2100_1.9x2.5_c141106.nc',
+  'XYLENES  -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_XYLENE_surface_1850-2100_1.9x2.5_c130903.nc',
+  'BENZENE ->  $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_BENZENE_surface_1850-2100_1.9x2.5_c130903.nc',
+  'HCN      -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_HCN_surface_1850-2100_1.9x2.5_c130814.nc',
+  'CH3CN    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH3CN_surface_1850-2100_1.9x2.5_c130814.nc',
+  'CH3COCH3 -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH3COCH3_surface_woBiog_1850-2100_1.9x2.5_c130814.nc',
+  'CH3COOH  -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_CH3COOH_surface_1850-2100_1.9x2.5_c130814.nc',
+  'HCOOH    -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_HCOOH_surface_1850-2100_1.9x2.5_c130814.nc',
+  'DMS      -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_DMS_surface_1850-2100_1.9x2.5_c130814.nc',
+  'NH3      -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_NH3_surface_1850-2100_1.9x2.5_c130814.nc',
+  'SO2      -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_SO2_surface_1850-2100_1.9x2.5_c130814.nc',
+  'IVOC     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_IVOCbb_surface_1850-2100_1.9x2.5_c160315.nc',
+  'IVOC     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_IVOCff_surface_1850-2100_1.9x2.5_c160315.nc',
+  'SVOC     -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_SVOCff_surf_1850-2005_c160315.nc',
+  'bc_a4    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_surf_1850-2005_c090804.nc',
+  'num_a1   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a1_surf_1850-2005_c150205.nc',
+  'num_a2   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_surf_1850-2005_c090804.nc',
+  'num_a4   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_surf_1850-2005_c150205.nc',
+  'pom_a4   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_surf_1850-2005_c130424.nc',
+  'so4_a1   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_surf_1850-2005_c090804.nc',
+  'so4_a2   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_surf_1850-2005_c090804.nc'
+</srf_emis_specifier>
+
+<!-- History Files -->
+
+<mfilt>            1,   10,   20,  73, 365 </mfilt>
+<nhtfrq>           0, -240, -240, -24, -24 </nhtfrq>
+<avgflag_pertape> 'A', 'I',  'I', 'A', 'A' </avgflag_pertape>
+
+<history_chemistry>.true.</history_chemistry>
+<history_waccm>.true.</history_waccm>
+<history_aerosol>.false.</history_aerosol>
+
+<!-- Monthly --> 
+<fincl1>
+  'CLDHGH', 'CLDLOW', 'CLDMED', 'CLDTOT', 'DTCOND', 'DTV', 'DUV', 'DVV', 'EKGW', 
+  'FLNS', 'FLNSC', 'FLNT', 'FLNTC', 'FSDS', 'FSNS', 'FSNSC', 'FSNT', 'FSNTC',
+  'LANDFRAC', 'LHFLX', 'OCNFRAC', 'OMEGA', 'PHIS', 'PRECC', 'PRECL', 'PS', 'QFLX',
+  'QRL', 'QRLNLTE', 'QRS', 'RELHUM', 'SHFLX', 'SOLIN', 'SWCF', 'QCP', 'QTHERMAL', 
+  'QRL_TOT', 'QRS_TOT', 'QJOULE', 'PSL', 'HNO3_STS', 'HNO3_NAT', 'HNO3_GAS', 
+  'NO_Aircraft', 'NO_Lightning', 'QNO', 'QRS_AUR', 'QRS_CO2NIR', 'QRS_EUV', 
+  'SAD_ICE', 'SAD_LNAT', 'SAD_SULFC', 'TREFHT', 'TTGW', 'UTGWORO', 'UTGWSPEC',
+  'VTGWORO', 'VTGWSPEC', 'Z3', 'NOX', 'NOY', 'CLOX', 'CLOY', 'BROX', 'BROY', 'TCLY', 
+  'TOTH', 'QJOULE', 'UI', 'VI', 'UIONTEND', 'VIONTEND', 'DTCORE', 
+  'T_24_COS',  'T_24_SIN', 'T_12_COS', 'T_12_SIN',
+  'OMEGA_24_COS', 'OMEGA_24_SIN', 'OMEGA_12_COS', 'OMEGA_12_SIN',
+  'U_24_COS', 'U_24_SIN', 'U_12_COS', 'U_12_SIN', 'V_24_COS', 'V_24_SIN', 'V_12_COS', 
+  'V_12_SIN', 'PS_24_COS', 'PS_24_SIN', 'PS_12_COS', 'PS_12_SIN', 'CLDLIQ','CLDICE','CONCLD',
+  'FRONTGF:I', 'BUTGWSPEC', 'BTAUE', 'BTAUW', 'BTAUN', 'BTAUS','TAUE','TAUW','TAUN','TAUS',
+  'TAUGWX', 'TAUGWY', 'TAUX','TAUY','SNOWHLND','SNOWHICE','ICEFRAC','FSDSC','CFC11STAR',
+  'TROPP_FD','AODVISst', 'AODUVst', 'AODNIRst', 'REFF_AERO', 'SAD_AERO', 
+  'O3_Prod','O3_Loss','RO2_NO_sum','RO2_NO3_sum','RO2_HO2_sum','RO2_RO2_sum','RCO2_NO2_sum',
+  'OddOx_Ox_Loss','OddOx_HOx_Loss','OddOx_NOx_Loss', 'OddOx_CLOxBROx_Loss','OddOx_Loss_Tot','OddOx_Prod_Tot',
+  'SO2_CHMP','CO_CHMP','O3_CHMP','SOAG0_CHMP','SOAG1_CHMP' ,'SOAG2_CHMP' ,'SOAG3_CHMP' ,'SOAG4_CHMP' ,
+  'SO2_CHML','CO_CHML','O3_CHML','SOAG0_CHML','SOAG1_CHML' ,'SOAG2_CHML' ,'SOAG3_CHML' ,'SOAG4_CHML' ,
+  'DO3CHM', 'DCOCHM', 'DHNO3CHM', 'DH2O2CHM', 
+</fincl1>
+
+<!-- Instantaneous every 10 days --> 
+<fincl2>
+  'PS', 'Z3', 'T', 'U', 'V',  'FLNT','PSL', 
+  'OMEGA','FSDS','FSDSC','CLOUD','CONCLD','SNOWHLND','SNOWHICE',
+  'CH3CL', 'CFC11', 'CFC12', 'CFC113', 'HCFC22', 'CCL4', 'CH3CCL3', 
+  'CH3BR', 'CF3BR', 'CF2CLBR',
+  'CO', 'CO2', 'CH2O', 'CH3OOH', 'CH4',
+  'O3', 'O', 'O1D',
+  'N', 'NO', 'NO2', 'NO3', 'N2O5', 'HNO3', 'HO2NO2', 'NOX', 'NOY', 'N2O',
+  'H', 'H2', 'OH', 'HO2', 'H2O2',  'H2O',
+  'CL','CL2', 'CLO', 'OCLO', 'CL2O2', 'CLONO2', 'HOCL', 'HCL', 'CLOX', 'CLOY', 
+  'BR', 'BRO', 'HOBR', 'HBR', 'BRCL', 'BRONO2', 'BROX', 'BROY', 'TCLY',
+  'jo2_a', 'jo2_b', 'jo3_a',  'jo3_b', 'jhocl', 'jno3_b', 'jcl2o2',
+  'SAD_SULFC', 'SAD_LNAT', 'SAD_ICE','AOA1','AOA2',
+  'O2', 'CLDLIQ', 'CLDICE', 'ASDIR',
+  'VTHzm', 'WTHzm', 'UVzm', 'UWzm', 'TH', 'MSKtem'
+</fincl2>
+
+<!-- Instantaneous every 10 days --> 
+<fincl3>
+  'PS:B', 'T:B', 'Z3:B', 'U:B', 'V:B', 'CO:B', 'CO2:B',
+  'H2:B', 'O:B', 'O2:B', 'O3:B', 'H:B', 'OH:B', 'HO2:B', 'H2O:B',
+  'N:B', 'NO:B', 'NO2:B', 'O1D:B', 'O2_1S:B', 'O2_1D:B', 'N2D:B',
+  'Np:B', 'N2p:B', 'Op:B', 'O2p:B', 'NOp:B', 'e:B', 'QRL_TOT:B',
+  'QRS_TOT:B', 'QJOULE:B', 'jno3_a:B', 'jno3_b:B', 'jcl2o2:B', 'CL2O2:B', 'CLO:B',
+  'BRO:B', 'NO3:B', 'DTCORE:B', 'DTV:B', 'TTGW:B','OMEGA:B' </fincl3>
+<!-- Daily Average --> 
+<fincl4>
+  'PS', 'PSL', 'U', 'V', 'T', 'Z3', 'PHIS','FRONTGF:I', 'OMEGA', 'O3', 'REFF_AERO', 'SAD_AERO', 
+  'so4_a1', 'so4_a2', 'so4_a3', 'AODVISstdn', 'SO2_XFRC'
+</fincl4>
+<!-- Daily Average --> 
+<fincl5>
+  'MSKtem', 'PS', 'PSL', 'VTHzm', 'UVzm', 'UWzm', 'Uzm', 'Vzm', 'THzm','Wzm', 'PHIS'
+</fincl5>
+
+<rxn_rate_sums>
+  'O3_Prod = NO_HO2 + CH3O2_NO + PO2_NO + CH3CO3_NO + C2H5O2_NO + .92*ISOPAO2_NO + .92*ISOPBO2_NO + MACRO2_NOa + MCO3_NO + C3H7O2_NO + RO2_NO + XO2_NO + .9*TOLO2_NO &',
+          '+ .9*PHENO2_NO + .9*C6H5O2_NO + .9*BENZO2_NO + .9*MALO2_NO + .9*BZOO_NO + .9*ACBZO2_NO + .9*DICARBO2_NO + .9*MDIALO2_NO  + .9*XYLOLO2_NO + .9*XYLENO2_NO + TERPO2_NO &',
+          '+ TERP2O2_NO + NTERPO2_NO + ALKO2_NO + ENEO2_NO +  EO2_NO + MEKO2_NO + HOCH2OO_NO + jonitr',
+  'O3_Loss = O1D_H2O + OH_O3 + HO2_O3 + C3H6_O3 + .9*ISOP_O3 + C2H4_O3 + .8*MVK_O3 + 0.8*MACR_O3 + MTERP_O3 + BCARY_O3',
+  'RO2_NO_sum  = NO_HO2 + CH3O2_NO + HOCH2OO_NO + EO2_NO + C2H5O2_NO + CH3CO3_NO + C3H7O2_NO + PO2_NO + RO2_NO + ENEO2_NO + ENEO2_NOb + MEKO2_NO + MACRO2_NOa + MACRO2_NOb &',
+              '+ MCO3_NO + ISOPAO2_NO + ISOPBO2_NO + ALKO2_NO + ALKO2_NOb + XO2_NO + TOLO2_NO + PHENO2_NO + C6H5O2_NO + BENZO2_NO + MALO2_NO + BZOO_NO + ACBZO2_NO + DICARBO2_NO &',
+              '+ MDIALO2_NO + XYLOLO2_NO + XYLENO2_NO + TERPO2_NO + TERP2O2_NO + NTERPO2_NO',
+  'RO2_NO3_sum = NO3_HO2 + MACRO2_NO3 + MCO3_NO3 + ISOPAO2_NO3 + ISOPBO2_NO3 + XO2_NO3',
+  'RO2_HO2_sum = CH3O2_HO2 + HOCH2OO_HO2 + EO2_HO2 + C2H5O2_HO2 + CH3CO3_HO2 + C3H7O2_HO2 + PO2_HO2 + RO2_HO2 + MEKO2_HO2 + MACRO2_HO2 + ISOPAO2_HO2 + ISOPBO2_HO2 + ALKO2_HO2 + &',
+                'XO2_HO2 + TOLO2_HO2 + PHENO2_HO2 + C6H5O2_HO2 + BENZO2_HO2 + MALO2_HO2 + BZOO_HO2 + ACBZO2_HO2 + DICARBO2_HO2 + MDIALO2_HO2 + XYLOLO2_HO2 + XYLENO2_HO2 + TERPO2_HO2 &',
+                '+ TERP2O2_HO2 + NTERPO2_HO2',
+  'RO2_RO2_sum = CH3O2_CH3O2a + CH3O2_CH3O2b + C2H5O2_CH3O2 + C2H5O2_C2H5O2 + CH3CO3_CH3O2 + CH3CO3_CH3CO3 + C3H7O2_CH3O2 + RO2_CH3O2 + MACRO2_CH3O2 + MACRO2_CH3CO3 + MCO3_CH3O2 &',
+               '+ MCO3_CH3CO3 + MCO3_MCO3 + ISOPAO2_CH3O2 + ISOPBO2_CH3O2 + ISOPAO2_CH3CO3 + ISOPBO2_CH3CO3 + XO2_CH3O2 + XO2_CH3CO3',
+  'RCO2_NO2_sum = CH3CO3_NO2 + MCO3_NO2',
+  'OddOx_Ox_Loss  = 2.0*O_O3 + O1D_H2O',
+  'OddOx_HOx_Loss = HO2_O + HO2_O3 + OH_O + OH_O3 + H_O3',
+  'OddOx_NOx_Loss = 2.0*NO2_O + 2.0*jno3_b',
+  'OddOx_CLOxBROx_Loss = 2.0*CLO_O + 2.0*jcl2o2 + 2.0*CLO_CLOa + 2.0*CLO_CLOb + 2.0*BRO_CLOb + 2.0*BRO_CLOc + 2.0*BRO_BRO + 2.0*BRO_O + CLO_HO2 + BRO_HO2',
+  'OddOx_Loss_Tot = 2.0*O_O3 + O1D_H2O + HO2_O + HO2_O3 + OH_O + OH_O3 + H_O3 + 2.0*NO2_O + 2.0*jno3_b + 2.0*CLO_O + 2.0*jcl2o2 + 2.0*CLO_CLOa + 2.0*CLO_CLOb + 2.0*BRO_CLOb  &',
+                 '+ 2.0*BRO_CLOc + 2.0*BRO_BRO + 2.0*BRO_O + CLO_HO2 + BRO_HO2',
+  'OddOx_Prod_Tot = 2.0*jo2_a + 2.0*jo2_b'
+</rxn_rate_sums>
+
+</namelist_defaults>

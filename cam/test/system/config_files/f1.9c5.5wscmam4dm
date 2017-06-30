@@ -1,0 +1,7 @@
+-spmd -nosmp
+-chem waccm_sc_mam4
+-dyn fv
+-res 1.9x2.5
+-debug
+-phys cam5.5
+-s

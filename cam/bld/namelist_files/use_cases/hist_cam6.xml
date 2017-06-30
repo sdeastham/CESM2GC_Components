@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<namelist_defaults>
+
+  <do_tms                   >   .false.   </do_tms>
+  <do_beljaars              >   .true.   </do_beljaars>
+  <bnd_topo                 >   '/glade/p/cesm/amwg_dev/juliob/bndtopo/fv_0.9x1.25_nc3000_Nsw042_Nrs008_Co060_Fi001_ZR.nc'   </bnd_topo>
+
+  <solar_data_file          >   'atm/cam/solar/SolarForcingCMIP6_18500101-22991231_c160830.nc'    </solar_data_file>
+
+  <tracer_cnst_datapath     >   'atm/cam/ozone/'   </tracer_cnst_datapath>
+  <tracer_cnst_file         >   'oxid_ozone_WACCM_CCMI_1850_2010_serial_3D_monthly_c20160531.nc'   </tracer_cnst_file>
+  <tracer_cnst_specifier    >   'O3','OH','NO3','HO2'   </tracer_cnst_specifier>
+  <tracer_cnst_type         >   'INTERP_MISSING_MONTHS'    </tracer_cnst_type>
+  <tracer_cnst_filelist     >   ''    </tracer_cnst_filelist>
+
+  <prescribed_ozone_datapath>   'atm/cam/ozone/'   </prescribed_ozone_datapath>
+  <prescribed_ozone_file    >   'oxid_ozone_WACCM_CCMI_1850_2010_serial_3D_monthly_c20160531.nc'   </prescribed_ozone_file>
+  <prescribed_ozone_name    >   'O3'   </prescribed_ozone_name>
+  <prescribed_ozone_type    >   'INTERP_MISSING_MONTHS'   </prescribed_ozone_type>
+
+  <clubb_do_liqsupersat     >   .true.    </clubb_do_liqsupersat>
+  <dust_emis_fact           >   1.50D0   </dust_emis_fact>
+  <use_gw_oro               >   .false.   </use_gw_oro>
+  <use_gw_rdg_beta          >   .true.   </use_gw_rdg_beta>
+  <zmconv_num_cin           >   1   </zmconv_num_cin>
+
+  <srf_emis_type            >    INTERP_MISSING_MONTHS  </srf_emis_type>
+  <srf_emis_specifier       >   'DMS       -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_DMS_surface_1850-2100_1.9x2.5_c141106.nc', 
+                                'SO2       -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1950_2100_rcp6/IPCC_emissions_SO2_surface_1850-2100_1.9x2.5_c141106.nc', 
+                                'SOAG      -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_soag_1.5_surf_1850-2005_c130424.nc', 
+                                'bc_a4     -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_surf_1850-2005_c090804.nc', 
+                                'num_a1    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a1_surf_1850-2005_c150205.nc', 
+                                'num_a2    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_surf_1850-2005_c090804.nc', 
+                                'num_a4    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_surf_1850-2005_c150205.nc', 
+                                'pom_a4    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_surf_1850-2005_c130424.nc', 
+                                'so4_a1    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_surf_1850-2005_c090804.nc', 
+                                'so4_a2    -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_surf_1850-2005_c090804.nc'
+</srf_emis_specifier>
+
+  <prescribed_strataero_feedback>   .true.   </prescribed_strataero_feedback>
+  <prescribed_strataero_type    >   'SERIAL'   </prescribed_strataero_type>
+
+  <ext_frc_type                 >    INTERP_MISSING_MONTHS   </ext_frc_type>
+  <ext_frc_specifier            >   'H2O     -> $INPUTDATA_ROOT/atm/cam/chem/emis/elev/H2O_emission_CH4_oxidationx2_elev_1850-2100_CCMI_RCP6_0_c160219.nc', 
+                                    'SO2     -> $INPUTDATA_ROOT/atm/cam/chem/emis/ccmi_1960-2008/IPCC_emissions_volc_SO2_1850-2100_1.9x2.5_c141106.nc', 
+                                    'bc_a4   -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_bc_elev_1850-2005_c090804.nc', 
+                                    'num_a1  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a1_elev_1850-2005_c150205.nc', 
+                                    'num_a2  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_num_a2_elev_1850-2005_c090804.nc', 
+                                    'num_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam4_num_a4_elev_1850-2005_c150205.nc', 
+                                    'pom_a4  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_pom_elev_1850-2005_c130424.nc', 
+                                    'so4_a1  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a1_elev_1850-2005_c090804.nc', 
+                                    'so4_a2  -> $INPUTDATA_ROOT/atm/cam/chem/trop_mozart_aero/emis/ar5_mam3_so4_a2_elev_1850-2005_c090804.nc'
+</ext_frc_specifier>
+
+   <scenario_ghg            >    RAMPED   </scenario_ghg>
+   <bndtvghg                >    atm/cam/ggas/ghg_hist_1765-2005_c091218.nc</bndtvghg>
+
+</namelist_defaults>
