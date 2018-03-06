@@ -54,7 +54,7 @@
 null  :=
 space := $(null) $(null)
 comma := $(null),$(null)
-
+echo "FC: $(FC)"
 # Initialize macros that allow a user override.
 
 # Set user override of default Fortran compiler optimizations
@@ -114,6 +114,7 @@ $(CURDIR)/Depends: $(CURDIR)/Srcfiles $(CURDIR)/Filepath
 
 # Generate list of source files.
 $(CURDIR)/Srcfiles: $(CURDIR)/Filepath
+	echo "EXCLUDE SOURCES MSL"
 	$(ROOTDIR)/components/cam/bld/mkSrcfiles -e $(EXCLUDE_SOURCES) > $@
 
 OBJS      := $(addsuffix .o, $(basename $(SOURCES)))

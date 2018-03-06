@@ -70,6 +70,7 @@
       <value compset="_CAM%DABIP04">-phys adiabatic</value>
       <value compset="_CAM%DCTBM">-phys held_suarez -chem terminator -analytic_ic</value>
       <value compset="_CAM%T2TEST">-phys held_suarez -chem t2 -analytic_ic</value>
+      <value compset="_CAM%GC">-chem geoschem</value>
       <value compset="_AQUAP">-ocn aquaplanet -aquaplanet</value>
 
       <value compset="%PORT">-offline_drv rad</value>

@@ -251,6 +251,14 @@
     <alias>FSDET2</alias>
     <lname>2000_CAM%T2TEST_SLND_SICE_SOCN_SROF_SGLC_SWAV</lname>
   </compset>
+
+  <!-- GEOS-Chem Test Compsets (MSL - 1/2018) -->
+
+  <compset>
+    <alias>GEOSCHEM</alias>
+    <lname>2000_CAM%GC_SLND_SICE_SOCN_SROF_SGLC_SWAV</lname>
+  </compset>
+
   <!-- ENTRIES -->
 
   <entries>
