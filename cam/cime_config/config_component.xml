@@ -70,7 +70,8 @@
       <value compset="_CAM%DABIP04">-phys adiabatic</value>
       <value compset="_CAM%DCTBM">-phys held_suarez -chem terminator -analytic_ic</value>
       <value compset="_CAM%T2TEST">-phys held_suarez -chem t2 -analytic_ic</value>
-      <value compset="_CAM%GC">-chem geoschem</value>
+      <value compset="_CAM40%GC">-chem geoschem</value>
+      <value compset="_CAM%GCHS">-phys held_suarez -chem geoschem -analytic_ic</value>
       <value compset="_AQUAP">-ocn aquaplanet -aquaplanet</value>
 
       <value compset="%PORT">-offline_drv rad</value>
@@ -133,6 +134,9 @@
       <value compset="CAM%HS94"          >held_suarez_1994</value>
       <value compset="CAM%DCTBM"         >dctest_baro_moist</value>
       <value compset="CAM%T2TEST"        >terminator2_dctbm</value>
+      <value compset="2000_CAM40%GC"     >geoschem</value>
+      <value compset="CAM%GC"            >geoschem</value>
+      <value compset="CAM%GCHS"          >geoschem_baro_moist</value>
     </values>
     <group>run_component_cam</group>
     <file>env_run.xml</file>
@@ -192,6 +196,8 @@
     <desc compset="%AQUAP"            >CAM atmosphere in aquaplanet mode: </desc>
     <desc compset="%PORT"             >CAM Parallel Offline Radiation Tool:</desc>
     <desc compset="_CAM.%L60"         >CAM 60 layers and full gravity wave spectrum:</desc>
+    <desc compset="%GC[%_]"           >CAM 40 GEOS-Chem integration:</desc>
+    <desc compset="%GCHS"             >CAM GEOS-Chem dycore test:</desc>
   </description>
 
   <help>

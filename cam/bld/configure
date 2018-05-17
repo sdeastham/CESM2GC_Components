@@ -511,9 +511,9 @@ if (defined $opts{'chem'}) {
     if ($simple_phys) {
 
         # the only valid chemistry options are 'none' and 'terminator'
-        if (($chem_pkg ne 'none') and ($chem_pkg ne 'terminator')) {
+        if (($chem_pkg ne 'none') and ($chem_pkg ne 'terminator') and ($chem_pkg ne 'geoschem')) {
             die "configure ERROR: -phys is set to $opts{'phys'}.\n".
-                "                 -chem can only be set to 'none or terminator'.\n";
+                "                 -chem can only be set to 'none or terminator or geoschem'.\n";
         }
     }
     elsif ($phys_pkg eq 'cam3' or $phys_pkg eq 'cam4') {
@@ -1551,6 +1551,8 @@ if ($chem_pkg =~ '_mam3') {
 # MSL - wedge in GEOS-Chem CPP defs here
 if ($chem_pkg =~ 'geoschem') {
     $chem_cppdefs .= ' -DEXTERNAL_GRID -DEXTERNAL_FORCING ';
+    # SDE - temporary fix
+    $chem_nadv = 200
 }
 
 my $carma_nadv = 0;
@@ -3081,21 +3083,21 @@ sub write_filepath
 	    print $fh "$chem_src_dir/geoschem_src/HEMCO/Extensions\n";
 	    print $fh "$chem_src_dir/geoschem_src/HEMCO/Interfaces\n";
 	    print $fh "$chem_src_dir/geoschem_src/ISOROPIA\n";
-	    print $fh "$chem_src_dir/geoschem_src/KPP/Standard\n";
-	    print $fh "$camsrcdir/cam/src/chemistry/pp_terminator\n"; }
+	    print $fh "$chem_src_dir/geoschem_src/KPP/Standard\n"; }
+#	    print $fh "$camsrcdir/cam/src/chemistry/pp_geoschem\n"; }
     }
-    if ($chem =~ /_mam/) {
-        print $fh "$camsrcdir/cam/src/chemistry/modal_aero\n";
-    } else {
-        print $fh "$camsrcdir/cam/src/chemistry/bulk_aero\n";
-    }
-    print $fh "$camsrcdir/cam/src/chemistry/aerosol\n";
     # -- Added by MSL - 1/2018
     if ($chem_pkg ne 'geoschem') { 
 	print $fh "$camsrcdir/cam/src/chemistry/mozart\n";
-    }
-    else {
-	print $fh "$camsrcdir/cam/src/chemistry/mozart\n";
+        if ($chem =~ /_mam/) {
+            print $fh "$camsrcdir/cam/src/chemistry/modal_aero\n";
+        } else {
+            print $fh "$camsrcdir/cam/src/chemistry/bulk_aero\n";
+        }
+        print $fh "$camsrcdir/cam/src/chemistry/aerosol\n";
+#    }
+#    else {
+#	print $fh "$camsrcdir/cam/src/chemistry/mozart\n";
     }
     # -- 
     if ($waccm_phys) {
