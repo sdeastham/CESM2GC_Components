@@ -1020,6 +1020,8 @@ if (($chem =~ /super_fast_llnl/) and !$chem_rad_passive ) {
     $radval .= ",'A:N2O:N2O','A:CH4:CH4','A:CFC11:CFC11','A:CFC12:CFC12'";
 } elsif ($prog_ghg1 and !$prog_ghg2  and !$chem_rad_passive ) {
     $radval .= ",'A:N2O:N2O','A:CH4:CH4','N:CFC11:CFC11','N:CFC12:CFC12'";
+} elsif ($chem =~ /geoschem/) {
+    $radval .= ",'A:N2O:N2O','A:CH4:CH4','A:CFC11:CFC11','A:CFC12:CFC12'";
 } else {
     $radval .= ",'N:N2O:N2O','N:CH4:CH4','N:CFC11:CFC11','N:CFC12:CFC12'";
 }
