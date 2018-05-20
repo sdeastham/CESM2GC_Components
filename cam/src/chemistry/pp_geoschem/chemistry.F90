@@ -57,6 +57,9 @@ module chemistry
   character(len=255) :: slsnames(nslsmax)
   !===== SDE DEBUG =====
 
+  ! Location of valid input.geos
+  character(len=500) :: inputGeosPath
+
   ! GEOS-Chem state variables
   Type(OptInput),Allocatable     :: Input_Opt(:)
   Type(MetState),Allocatable     :: State_Met(:)
@@ -186,9 +189,7 @@ contains
     character(len=500) :: line
     logical :: menuFound, validSLS
 
-
-    ! Hard-code for now
-    character(len=500) :: inputGeosPath
+    ! Set path
     inputGeosPath='/n/regal/jacob_lab/seastham/CESM2/CESM2_GC2/ut_src/runs/4x5_standard/input.geos.template'
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_READNL'
