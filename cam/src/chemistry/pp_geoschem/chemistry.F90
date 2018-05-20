@@ -317,6 +317,8 @@ contains
     use state_chm_mod
     use gc_environment_mod
 
+    use time_mod,      only : accept_external_date_time
+
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -366,7 +368,62 @@ contains
        JJPAR = ncol(i)
        LLPAR = nlev
  
+       ! Note - this is called AFTER chem_readnl, after X, and after 
+       ! every constituent has had its initial conditions read. Any
+       ! constituent which is not found in the CAM restart file will
+       ! then have already had a call to chem_implements_cnst, and will
+       ! have then had a call to chem_init_cnst to set a default VMR
+       call GC_Allocate_All ( am_I_Root      = rootCPU,      &
+                              Input_Opt      = Input_Opt(i), &
+                              value_I_Lo     = 1,            &
+                              value_J_Lo     = 1,            &
+                              value_I_Hi     = IIPAR,        &
+                              value_J_Hi     = JJPAR,        &
+                              value_IM       = IIPAR,        &
+                              value_JM       = JJPAR,        &
+                              value_LM       = LLPAR,        &
+                              value_IM_WORLD = IIPAR,        &
+                              value_JM_WORLD = JJPAR,        &
+                              value_LM_WORLD = LLPAR,        &
+                              RC             = RC )
+
     end do
+
+    ! TODO: Mimic GEOS-Chem's reading of input options
+    ! For now just fake it
+    Do i=begchunk,endchunk
+       ! Simulation menu
+       ! Ignore the data directories for now
+       Input_Opt(i)%NYMDb                = 20000101
+       Input_Opt(i)%NHMSb                =   000000
+       Input_Opt(i)%NYMDe                = 20010101
+       Input_Opt(i)%NHMSe                =   000000
+       Input_Opt(i)%LUnzip               = .False. 
+       Input_Opt(i)%LWait                = .False.
+       Input_Opt(i)%LVarTrop             = .True.
+       Input_Opt(i)%Its_A_Nested_Grid    = .False.
+       Input_Opt(i)%Nested_I0            = 0
+       Input_Opt(i)%Nested_J0            = 0
+    End Do
+
+    ! Set the times held by "time_mod"
+    Call Accept_External_Date_Time( am_I_Root   = masterproc,         &
+                                    value_NYMDb = Input_Opt(1)%NYMDb, &
+                                    value_NHMSb = Input_Opt(1)%NHMSb, &
+                                    value_NYMDe = Input_Opt(1)%NYMDe, &
+                                    value_NHMSe = Input_Opt(1)%NHMSe, &
+                                    value_NYMD  = Input_Opt(1)%NYMDb, &
+                                    value_NHMS  = Input_Opt(1)%NHMSb, &
+                                    RC          = RC                  )
+
+    !Call Set_NDiagTime( Input_Opt(1)%NHMSe )
+
+    !If (masterproc) then
+    !   Call Read_Input_File( am_I_Root   = .True., &
+    !                         Input_Opt   = Input_Opt(begchunk), &
+    !                         srcFile     = inputGeosPath,      &
+    !                         RC          = RC )
+    !End If
 
     ! Can add history output here too with the "addfld" & "add_default" routines
     ! Note that constituents are already output by default
