@@ -14,7 +14,7 @@ module chemistry
   !use mo_chem_utls,        only : get_spc_ndx
   !use chem_mods,           only : gas_pcnst, adv_mass
   !use mo_sim_dat, only: set_sim_dat
-  use spmd_utils,          only : masterproc
+  use spmd_utils,          only : masterproc, myCPU=>iam, nCPUs=>npes
   use cam_logfile,         only : iulog
 
   use input_opt_mod,       only : optinput
@@ -62,6 +62,9 @@ module chemistry
 
   ! Location of valid input.geos
   character(len=500) :: inputGeosPath
+
+  ! Location of chemistry input (for now)
+  character(len=500) :: chemInputsDir
 
   ! GEOS-Chem state variables
   Type(OptInput),Allocatable     :: Input_Opt(:)
@@ -192,8 +195,9 @@ contains
     character(len=500) :: line
     logical :: menuFound, validSLS
 
-    ! Set path
+    ! Set paths
     inputGeosPath='/n/regal/jacob_lab/seastham/CESM2/CESM2_GC2/ut_src/runs/4x5_standard/input.geos.template'
+    chemInputsDir='/n/holylfs/EXTERNAL_REPOS/GEOS-CHEM/gcgrid/gcdata/ExtData/CHEM_INPUTS/'
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_READNL'
 
@@ -315,7 +319,11 @@ contains
     use physics_buffer, only: physics_buffer_desc
     use cam_history,    only: addfld, add_default, horiz_only
 
+    use mpishorthand
     use cam_abortutils, only : endrun
+
+    ! Use GEOS-Chem versions of physical constants
+    use physconstants,  only : pi, pi_180
 
     use input_opt_mod
     use state_met_mod
@@ -328,10 +336,13 @@ contains
     use time_mod,      only : Set_NDiagTime,    Get_Tau
     use gc_grid_mod,   only : Set_XOffset, Set_YOffset
     use gc_grid_mod,   only : compute_grid, init_grid
+    use gc_grid_mod,   only : SetGridFromCtr
     use transfer_mod,  only : init_transfer
 
     use cmn_o3_mod
     use cmn_size_mod
+
+    use linoz_mod,     only : linoz_read
     use ucx_mod,       only : cfcyear
     use ucx_mod,       only : P_Ice_Supersat, T_NAT_Supercool
 
@@ -344,8 +355,13 @@ contains
 
     integer               :: nX, nY, nZ
     integer               :: nlev, i, j, l, rc
+    integer               :: nLinoz
 
-    real(fp), allocatable :: DLonVec(:), DLatVec(:)
+    ! Grid setup
+    !real(fp), allocatable :: DLonVec(:), DLatVec(:)
+    real(fp)              :: lonVal, latVal, dLonFix, dLatFix
+    real(fp), allocatable :: lonMidArr(:,:), latMidArr(:,:)
+    real(r8), allocatable :: linozData(:,:,:,:)
 
     logical               :: rootCPU
 
@@ -363,13 +379,9 @@ contains
     nZ = nlev
 
     ! This ensures that each process allocates everything needed for its chunks
-    if (.not.allocated(input_opt)) then
-       Allocate(Input_Opt(begchunk:endchunk))
-       Allocate(State_Met(begchunk:endchunk))
-       Allocate(State_Chm(begchunk:endchunk))
-       if (masterproc) write(iulog,'(a,3(x,L1))') ' --> ALLOC CHECK   : ', Allocated(input_opt), Allocated(state_met), Allocated(state_chm)
-    end if
-    write(iulog,'(a,x,L1,2(x,I6))') ' --> SIZE  CHECK   : ', masterproc,lbound(Input_Opt),ubound(input_opt)
+    Allocate(Input_Opt(begchunk:endchunk))
+    Allocate(State_Met(begchunk:endchunk))
+    Allocate(State_Chm(begchunk:endchunk))
    
     Do i = begchunk, endchunk
 
@@ -389,32 +401,29 @@ contains
        Input_Opt(i)%Linoz_NFields     = 7
        Input_Opt(i)%RootCPU           = rootCPU
  
-       ! Note - this is called AFTER chem_readnl, after X, and after 
-       ! every constituent has had its initial conditions read. Any
-       ! constituent which is not found in the CAM restart file will
-       ! then have already had a call to chem_implements_cnst, and will
-       ! have then had a call to chem_init_cnst to set a default VMR
-       call GC_Allocate_All ( am_I_Root      = rootCPU,      &
-                              Input_Opt      = Input_Opt(i), &
-                              value_I_Lo     = 1,            &
-                              value_J_Lo     = 1,            &
-                              value_I_Hi     = nX,           &
-                              value_J_Hi     = nY,           &
-                              value_IM       = nX,           &
-                              value_JM       = nY,           &
-                              value_LM       = nZ,           &
-                              value_IM_WORLD = nX,           &
-                              value_JM_WORLD = nY,           &
-                              value_LM_WORLD = nZ,           &
-                              RC             = RC )
+       ! Set default values
+       Call Set_Input_Opt( rootCPU, Input_Opt(i), RC )
 
+       ! We want every input_opt chunk to be indexed independently, but
+       ! for now just let all the chunks have the same CPU
+       Input_Opt(i)%myCPU = myCPU
     end do
 
     ! TODO: Mimic GEOS-Chem's reading of input options
-    ! For now just fake it
+    !If (masterproc) then
+    !   Call Read_Input_File( am_I_Root   = .True., &
+    !                         Input_Opt   = Input_Opt(begchunk), &
+    !                         srcFile     = inputGeosPath,      &
+    !                         RC          = RC )
+    !End If
+    !Call <broadcast data to other CPUs>
+
+    ! For now just hard-code it
+    ! First set up directories
     Do i=begchunk,endchunk
-       ! Start by setting some dummy timesteps - go with 5 minutes for now
-       call gc_update_timesteps(i,300.0e+0_r8)
+       Input_Opt(i)%Chem_Inputs_Dir      = Trim(chemInputsDir)
+    End Do
+    Do i=begchunk,endchunk
        ! Simulation menu
        ! Ignore the data directories for now
        Input_Opt(i)%NYMDb                = 20000101
@@ -428,53 +437,6 @@ contains
        Input_Opt(i)%Nested_I0            = 0
        Input_Opt(i)%Nested_J0            = 0
     End Do
-
-    ! Set the times held by "time_mod"
-    Call Accept_External_Date_Time( am_I_Root   = masterproc,         &
-                                    value_NYMDb = Input_Opt(begchunk)%NYMDb, &
-                                    value_NHMSb = Input_Opt(begchunk)%NHMSb, &
-                                    value_NYMDe = Input_Opt(begchunk)%NYMDe, &
-                                    value_NHMSe = Input_Opt(begchunk)%NHMSe, &
-                                    value_NYMD  = Input_Opt(begchunk)%NYMDb, &
-                                    value_NHMS  = Input_Opt(begchunk)%NHMSb, &
-                                    RC          = RC                  )
-
-    Call Set_NDiagTime( Input_Opt(begchunk)%NHMSe     )
-    Call Set_DiagB    ( Get_Tau()                     )
-    Call Set_XOffset  ( Input_Opt(begchunk)%Nested_I0 )
-    Call Set_YOffset  ( Input_Opt(begchunk)%Nested_J0 )
-    !Call Initialize_GEOS_Grid( masterproc, Input_Opt(begchunk), RC )
-    Call Init_Grid   ( am_I_Root = masterproc,          &
-                       Input_Opt = Input_Opt(begchunk), &
-                       IM        = nX,                  &
-                       JM        = nY,                  &
-                       LM        = nZ,                  &
-                       RC        = RC                   )
-
-    ! Need DLon and DLat as an array, even though they aren't used
-    Allocate(DLonVec(nX), Stat=ierr)
-    If (ierr.ne.0) Call endrun('Failure while allocating DLonVec')
-    Allocate(DLatVec(nY), Stat=ierr)
-    If (ierr.ne.0) Call endrun('Failure while allocating DLatVec')
-    DLonVec(:) = 1.0e+0_fp
-    DLatVec(:) = 1.0e+0_fp
-    Call Compute_Grid( am_I_Root = masterproc, &
-                       I1        = 1,          &
-                       J1        = 1,          &
-                       L1        = 1,          &
-                       I2        = nX,         &
-                       J2        = nY,         &
-                       L2        = nZ,         &
-                       JSP       = 1,          &
-                       JNP       = nY,         &
-                       DLon      = DLonVec,    &
-                       DLat      = DLatVec,    &
-                       I_Lo      = 1,          &
-                       J_Lo      = 1,          &
-                       RC        = RC          )
-    Deallocate(DLonVec)
-    Deallocate(DLatVec)
-    Call Init_Transfer( 0, 0 )
 
     ! Now READ_ADVECTED_SPECIES_MENU
     do i=begchunk,endchunk
@@ -583,6 +545,10 @@ contains
        Input_Opt(i)%LActiveH2O             = .True.
        Input_Opt(i)%LO3FJX                 = .True.
        Input_Opt(i)%Gamma_HO2              = 0.2e+0_fp
+
+       ! Expect to get total overhead ozone, although it shouldn't make too much
+       ! of a difference since we want to use "full-UCX"
+       Input_Opt(i)%Use_O3_From_Met        = .True.
     end do
 
     ! Now READ_TRANSPORT_MENU
@@ -609,13 +575,145 @@ contains
        Input_Opt(i)%LWetD                  = .False.
        Input_Opt(i)%Use_Olson_2001         = .True.
     end do
-    !If (masterproc) then
-    !   Call Read_Input_File( am_I_Root   = .True., &
-    !                         Input_Opt   = Input_Opt(begchunk), &
-    !                         srcFile     = inputGeosPath,      &
-    !                         RC          = RC )
-    !End If
 
+    ! Read in data for Linoz. All CPUs allocate one array to hold the data. Only
+    ! the root CPU reads in the data; then we copy it out to a temporary array,
+    ! broadcast to all other CPUs, and finally duplicate the data into every
+    ! copy of Input_Opt
+    If (Input_Opt(begchunk)%LLinoz) Then
+       ! Allocate array for broadcast
+       nLinoz = Input_Opt(begchunk)%Linoz_NLevels * &
+                Input_Opt(begchunk)%Linoz_NLat    * &
+                Input_Opt(begchunk)%Linoz_NMonths * &
+                Input_Opt(begchunk)%Linoz_NFields 
+       Allocate( linozData( Input_Opt(begchunk)%Linoz_NLevels,               &
+                            Input_Opt(begchunk)%Linoz_NLat,                  &
+                            Input_Opt(begchunk)%Linoz_NMonths,               &
+                            Input_Opt(begchunk)%Linoz_NFields  ), Stat=ierr)
+       If (ierr.ne.0) Call endrun('Failure while allocating linozData')
+       linozData = 0.0e+0_r8
+  
+       If (rootCPU) Then
+          ! Read data in to Input_Opt%Linoz_TParm
+          Call Linoz_Read( rootCPU, Input_Opt(begchunk), RC )
+          ! Copy the data to a temporary array
+          linozData = real(Input_Opt(begchunk)%LINOZ_TPARM,r8)
+       End If
+#if defined( SPMD )
+       call mpibcast(linozData, nLinoz, mpir8, 0, mpicom )
+#endif
+       ! Now copy the data to all other Input_Opt copies
+       Do i=begchunk,endchunk
+          Input_Opt(i)%LINOZ_TPARM = real(linozData,fp)
+       End Do
+       Deallocate(linozData)
+    End If
+
+    ! Note - this is called AFTER chem_readnl, after X, and after 
+    ! every constituent has had its initial conditions read. Any
+    ! constituent which is not found in the CAM restart file will
+    ! then have already had a call to chem_implements_cnst, and will
+    ! have then had a call to chem_init_cnst to set a default VMR
+    call GC_Allocate_All ( am_I_Root      = rootCPU,             &
+                           Input_Opt      = Input_Opt(begchunk), &
+                           value_I_Lo     = 1,                   &
+                           value_J_Lo     = 1,                   &
+                           value_I_Hi     = nX,                  &
+                           value_J_Hi     = nY,                  &
+                           value_IM       = nX,                  &
+                           value_JM       = nY,                  &
+                           value_LM       = nZ,                  &
+                           value_IM_WORLD = nX,                  &
+                           value_JM_WORLD = nY,                  &
+                           value_LM_WORLD = nZ,                  &
+                           RC             = RC )
+
+    ! Set the times held by "time_mod"
+    Call Accept_External_Date_Time( am_I_Root   = masterproc,         &
+                                    value_NYMDb = Input_Opt(begchunk)%NYMDb, &
+                                    value_NHMSb = Input_Opt(begchunk)%NHMSb, &
+                                    value_NYMDe = Input_Opt(begchunk)%NYMDe, &
+                                    value_NHMSe = Input_Opt(begchunk)%NHMSe, &
+                                    value_NYMD  = Input_Opt(begchunk)%NYMDb, &
+                                    value_NHMS  = Input_Opt(begchunk)%NHMSb, &
+                                    RC          = RC                  )
+
+    ! --- COMPILES OK WHEN CUTOFF IS HERE
+
+    !Call Set_NDiagTime( Input_Opt(begchunk)%NHMSe     )
+    !Call Set_DiagB    ( Get_Tau()                     )
+    !Call Set_XOffset  ( Input_Opt(begchunk)%Nested_I0 )
+    !Call Set_YOffset  ( Input_Opt(begchunk)%Nested_J0 )
+    !Call Initialize_GEOS_Grid( masterproc, Input_Opt(begchunk), RC )
+    Call Init_Grid   ( am_I_Root = masterproc,          &
+                       Input_Opt = Input_Opt(begchunk), &
+                       IM        = nX,                  &
+                       JM        = nY,                  &
+                       LM        = nZ,                  &
+                       RC        = RC                   )
+
+    ! Use the GCHP method for setting up the grid - note that this does NOT set
+    ! up the areas. In any case we will need to be constantly updating this grid
+    ! to compensate for the "multiple chunks per processor" element
+    Allocate(lonMidArr(nX,nY), Stat=ierr)
+    If (ierr.ne.0) Call endrun('Failure while allocating lonMidArr')
+    Allocate(latMidArr(nX,nY), Stat=ierr)
+    If (ierr.ne.0) Call endrun('Failure while allocating latMidArr')
+
+    ! COMPILES OK WHEN CUTOFF IS HERE (with deallocate statemenets added)
+
+    ! We could try and get the data from CAM.. but the goal is to make this GC
+    ! component completely grid independent. So for now, we set to arbitrary
+    ! values
+    dLonFix = 360.0e+0_fp / real(nX,fp)
+    dLatFix = 180.0e+0_fp / real(nY,fp)
+    if (masterproc) write(iulog,'(a,2(x,I4))') ' nX nY ', nX, nY
+    do i=1,nX
+       ! Center of box, assuming dateline edge
+       lonVal = (-180.0e+0_fp + (0.5e+0_fp * dLonFix) + (real(i-1,fp)*dLonFix)) * pi_180
+       do j=1,nY
+          ! Center of box, assuming regular cells
+          latVal = (-90.0e+0_fp + (0.5e+0_fp * dLatFix) + (real(j-1,fp)*dLatFix)) * pi_180
+          lonMidArr(i,j) = lonVal
+          latMidArr(i,j) = latVal
+       end do
+    end do
+    Call SetGridFromCtr( rootCPU, nX, nY, lonMidArr, latMidArr, RC )
+    Deallocate(lonMidArr)
+    Deallocate(latMidArr)
+
+    ! --- ORIGINAL CODE OK POINT ---
+
+    ! Below is the GCC method
+    ! Need DLon and DLat as an array, even though they aren't used
+    !Allocate(DLonVec(nX), Stat=ierr)
+    !If (ierr.ne.0) Call endrun('Failure while allocating DLonVec')
+    !Allocate(DLatVec(nY), Stat=ierr)
+    !If (ierr.ne.0) Call endrun('Failure while allocating DLatVec')
+    !DLonVec(:) = 1.0e+0_fp
+    !DLatVec(:) = 1.0e+0_fp
+    !Call Compute_Grid( am_I_Root = masterproc, &
+    !                   I1        = 1,          &
+    !                   J1        = 1,          &
+    !                   L1        = 1,          &
+    !                   I2        = nX,         &
+    !                   J2        = nY,         &
+    !                   L2        = nZ,         &
+    !                   JSP       = 1,          &
+    !                   JNP       = nY,         &
+    !                   DLon      = DLonVec,    &
+    !                   DLat      = DLatVec,    &
+    !                   I_Lo      = 1,          &
+    !                   J_Lo      = 1,          &
+    !                   RC        = RC          )
+    !Deallocate(DLonVec)
+    !Deallocate(DLatVec)
+    !Call Init_Transfer( 0, 0 )
+
+    ! Start by setting some dummy timesteps - go with 5 minutes for now
+    do i=begchunk,endchunk
+       call gc_update_timesteps(i,300.0e+0_r8)
+    end do
     ! Can add history output here too with the "addfld" & "add_default" routines
     ! Note that constituents are already output by default
 
@@ -774,17 +872,21 @@ contains
   subroutine chem_final
    
     use input_opt_mod, only : cleanup_input_opt
+    use ucx_mod,       only : cleanup_ucx
+    use linoz_mod,     only : cleanup_linoz
  
     integer :: i, rc
     logical :: rootCPU
 
     ! Finalize GEOS-Chem
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_FINAL'
-    ! Loop over each chunk
+    ! Loop over each chunk and clean up the independent variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
        Call Cleanup_Input_Opt( rootCPU, Input_Opt(i), RC )
     End Do
+    ! Clean up module variables
+    Call Cleanup_Linoz
     ! Finally deallocate the variables in full
     If (allocated(input_opt))     Deallocate(Input_Opt)
     If (allocated(State_Met))     Deallocate(State_Met)
