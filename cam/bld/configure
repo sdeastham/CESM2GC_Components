@@ -1550,7 +1550,7 @@ if ($chem_pkg =~ '_mam3') {
 
 # MSL - wedge in GEOS-Chem CPP defs here
 if ($chem_pkg =~ 'geoschem') {
-    $chem_cppdefs .= ' -DEXTERNAL_GRID -DEXTERNAL_FORCING ';
+    $chem_cppdefs .= ' -DEXTERNAL_GRID -DEXTERNAL_FORCING -DGC_CESM ';
     # SDE - temporary fix
     $chem_nadv = 200
 }
