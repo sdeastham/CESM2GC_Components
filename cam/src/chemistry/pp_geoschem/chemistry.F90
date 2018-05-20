@@ -324,7 +324,9 @@ contains
     integer :: iwait
 
     integer :: iipar, jjpar, llpar
-    integer :: nlev, i
+    integer :: nlev, i, rc
+
+    logical :: rootCPU
 
     ! lchnk: which chunks we have on this process
     lchnk = phys_state%lchnk
@@ -344,6 +346,9 @@ contains
    
     Do i = begchunk, endchunk
 
+       ! Only treat the first chunk as the "root"
+       rootCPU = ((i.eq.begchunk) .and. MasterProc)
+
        ! Set some basic flags
        Input_Opt(i)%Max_Diag          = 1000
        Input_Opt(i)%Max_Trcs          = 500
@@ -355,7 +360,7 @@ contains
        Input_Opt(i)%Linoz_NLat        = 18
        Input_Opt(i)%Linoz_NMonths     = 12
        Input_Opt(i)%Linoz_NFields     = 7
-       Input_Opt(i)%RootCPU           = ((i.eq.begchunk) .and. MasterProc)
+       Input_Opt(i)%RootCPU           = rootCPU
 
        IIPAR = 1
        JJPAR = ncol(i)
