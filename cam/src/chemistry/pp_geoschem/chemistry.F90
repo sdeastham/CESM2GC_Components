@@ -472,9 +472,20 @@ contains
 
 !===============================================================================
   subroutine chem_final
-    
+   
+    use input_opt_mod, only : cleanup_input_opt
+ 
+    integer :: i, rc
+    logical :: rootCPU
+
     ! Finalize GEOS-Chem
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_FINAL'
+    ! Loop over each chunk
+    Do i=begchunk,endchunk
+       rootCPU = ((i.eq.begchunk) .and. MasterProc)
+       Call Cleanup_Input_Opt( rootCPU, Input_Opt(i), RC )
+    End Do
+    ! Finally deallocate the variables in full
     If (allocated(input_opt))     Deallocate(Input_Opt)
     If (allocated(State_Met))     Deallocate(State_Met)
     If (allocated(State_Chm))     Deallocate(State_Chm)
