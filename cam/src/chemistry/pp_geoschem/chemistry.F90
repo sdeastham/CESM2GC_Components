@@ -339,7 +339,7 @@ contains
     use gc_grid_mod,   only : Set_XOffset, Set_YOffset
     use gc_grid_mod,   only : compute_grid, init_grid
     use gc_grid_mod,   only : SetGridFromCtr
-    use transfer_mod,  only : init_transfer
+    !use transfer_mod,  only : init_transfer
 
     use cmn_o3_mod
     use cmn_size_mod
@@ -350,6 +350,17 @@ contains
 
     use error_mod,     only : init_error
     use drydep_mod,    only : init_drydep
+    use carbon_mod,    only : init_carbon
+    use dust_mod,      only : init_dust
+    use seasalt_mod,   only : init_seasalt
+    use sulfate_mod,   only : init_sulfate
+    use aerosol_mod,   only : init_aerosol
+    use WetScav_Mod,   Only : init_wetscav
+    use chemgrid_mod,  only : init_chemgrid
+    use TOMS_mod,      only : init_TOMS
+    use C2H6_mod,      only : init_C2H6
+    use pressure_mod,  only : init_pressure
+    !use MODIS_LAI_Mod, Only : init_MODIS_LAI
 
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -359,6 +370,7 @@ contains
     integer               :: iwait, ierr
 
     integer               :: nX, nY, nZ
+    integer               :: iX, iY, iZ
     integer               :: nlev, i, j, l, rc
     integer               :: nLinoz
 
@@ -675,19 +687,82 @@ contains
        ! also it requires history/diag components which aren't yet dealt with
        rootCPU = (masterproc .and. (i == begchunk))
        Call Init_State_Met( rootCPU, nX, nY, nZ, State_Met(i), RC )
-       If (rc.ne.0) Call endrun('Could not initialize State_Met')
+       If (rc.ne.GC_SUCCESS) Call endrun('Could not initialize State_Met')
        Call Init_State_Chm( rootCPU, nX, nY, nZ, &
                             Input_Opt, State_Chm(i), &
                             nDust + nAer, RC )
-       If (rc.ne.0) Call endrun('Could not initialize State_Chm')
+       If (rc.ne.GC_SUCCESS) Call endrun('Could not initialize State_Chm')
 
        ! Start with v/v dry (CAM standard)
        State_Chm(i)%Spc_Units = 'v/v dry'
     end do
 
-    ! Now replicate GC_Init_Extra...
-    Call Init_DryDep( masterproc, Input_Opt, State_Chm(begchunk), RC )
-    If (rc.ne.0) Call endrun('Could not initialize drydep')
+    ! === START GC_INIT_EXTRA ===
+    ! NOTE: Could probably get away with just calling GC_Init_Extra, as long as
+    ! the missing modules (eg MODIS_LAI) were sorted out
+    If (Input_Opt%LDryD) Then
+       Call Init_DryDep( masterproc, Input_Opt, State_Chm(begchunk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize wet dry deposition')
+    End If
+
+    ! Note: just need *a* copy of State_Chm so that the species DB is accessible
+    If (Input_Opt%LConv.or.Input_Opt%LWetD.or.Input_Opt%LChem) Then
+       Call Init_WetScav( masterproc, Input_Opt, State_Chm(begchunk), RC)
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize wet scavenging')
+    End If
+
+    ! Init_MODIS_LAI..
+    !Call Init_MODIS_LAI( masterproc, Input_Opt, RC )
+    !If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize MODIS LAI')
+
+    !Call Set_VDiff_Values( masterproc, Input_Opt, State_Chm(begchunk), RC )
+    !If (rc.ne.GC_SUCCESS) Call endrun('Failed to set PBL mixing values')
+    !Call Init_Get_NDep( masterproc, RC )
+    !If (rc.ne.GC_SUCCESS) Call endrun('Failed to get N deposition data')
+
+    If (Input_Opt%LCarb) Then
+       Call Init_Carbon( masterproc, Input_Opt, RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize carbon_mod')
+    End If
+
+    If (Input_Opt%LDust) Then
+       Call Init_Dust( masterproc, Input_Opt, State_Chm(begchunk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize dust_mod')
+    End If
+
+    If (Input_Opt%LSSalt) Then
+       Call Init_SeaSalt( masterproc, Input_Opt, State_Chm(begchunk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize seasalt_mod')
+    End If
+
+    If (Input_Opt%LSulf) Then
+       Call Init_Sulfate( masterproc, Input_Opt, State_Chm(begchunk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize sulfate_mod')
+    End If
+
+    If (Input_Opt%LSulf.or.Input_Opt%LCarb.or.Input_Opt%LDust.or.Input_Opt%LSSalt) Then
+       Call Init_Aerosol( masterproc, Input_Opt, RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize aerosol_mod')
+    End If
+
+    Call Init_ChemGrid( masterproc, Input_Opt, RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
+
+    Call Init_TOMS( masterproc, Input_Opt, RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
+
+    Call Init_C2H6( masterproc, Input_Opt, RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
+
+    ! This is a bare subroutine - no module
+    Call NDXX_Setup( masterproc, Input_Opt, State_Chm(begchunk), RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to run NDXX setup')
+
+    ! NOT DONE: TCPORE_BC, Diag_OH, Diag20, GAMAP, Mercury (all),
+    !           Tagged simulations (all), Global_CH4
+
+    ! === END GC_INIT_EXTRA ===
+
 
     ! Init_FJX..
     ! Init_Pressure...
@@ -855,8 +930,24 @@ contains
     use input_opt_mod, only : cleanup_input_opt
     use state_chm_mod, only : cleanup_state_chm
     use state_met_mod, only : cleanup_state_met
+    use error_mod,     only : cleanup_error
+
     use ucx_mod,       only : cleanup_ucx
     use linoz_mod,     only : cleanup_linoz
+    use drydep_mod,    only : cleanup_drydep
+    use wetscav_mod,   only : cleanup_wetscav
+    !use MODIS_LAI_Mod, Only : cleanup_MODIS_LAI
+    use carbon_mod,    only : cleanup_carbon
+    use dust_mod,      only : cleanup_dust
+    use seasalt_mod,   only : cleanup_seasalt
+    use aerosol_mod,   only : cleanup_aerosol
+    use chemgrid_mod,  only : cleanup_chemgrid
+    use TOMS_mod,      only : cleanup_TOMS
+    use C2H6_mod,      only : cleanup_C2H6
+    use sulfate_mod,   only : cleanup_sulfate
+
+    ! Special: cleans up after NDXX_Setup
+    use Diag_mod,      only : cleanup_diag
  
     integer :: i, rc
     logical :: rootCPU
@@ -865,12 +956,26 @@ contains
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_FINAL'
     ! Clean up module variables
     Call Cleanup_Linoz
+    Call Cleanup_Drydep
+    Call Cleanup_Wetscav
+    Call Cleanup_Carbon
+    Call Cleanup_Dust
+    !Call Cleanup_MODIS_LAI
+    Call Cleanup_SeaSalt
+    Call Cleanup_ChemGrid
+    Call Cleanup_TOMS
+    Call Cleanup_Sulfate
+    Call Cleanup_Aerosol
+    Call Cleanup_Diag
+    Call Cleanup_C2H6
     ! Loop over each chunk and clean up the state variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
        Call Cleanup_State_Met( rootCPU, State_Met(i), RC )
        Call Cleanup_State_Chm( rootCPU, State_Chm(i), RC )
     End Do
+    ! Clean up error module
+    Call Cleanup_Error
     ! Clean up input_opt
     Call Cleanup_Input_Opt( masterproc, Input_Opt, RC )
     ! Finally deallocate the variables in full
