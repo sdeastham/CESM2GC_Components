@@ -23,6 +23,9 @@ module chemistry
 
   ! GEOS-Chem precision specifiers
   use precision_mod,       only : fp
+ 
+  ! GEOS-Chem error codes
+  use errcode_mod
 
   implicit none
   private
