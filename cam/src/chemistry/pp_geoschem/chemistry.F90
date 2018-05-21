@@ -398,14 +398,14 @@ contains
     Input_Opt%Linoz_NLat        = 18
     Input_Opt%Linoz_NMonths     = 12
     Input_Opt%Linoz_NFields     = 7
-    Input_Opt%RootCPU           = rootCPU
+    Input_Opt%RootCPU           = masterproc
 
     ! Note - this is called AFTER chem_readnl, after X, and after 
     ! every constituent has had its initial conditions read. Any
     ! constituent which is not found in the CAM restart file will
     ! then have already had a call to chem_implements_cnst, and will
     ! have then had a call to chem_init_cnst to set a default VMR
-    call GC_Allocate_All ( am_I_Root      = rootCPU,   &
+    call GC_Allocate_All ( am_I_Root      = masterproc,&
                            Input_Opt      = Input_Opt, &
                            value_I_Lo     = 1,         &
                            value_J_Lo     = 1,         &
@@ -656,7 +656,7 @@ contains
           latMidArr(i,j) = latVal
        end do
     end do
-    Call SetGridFromCtr( rootCPU, nX, nY, lonMidArr, latMidArr, RC )
+    Call SetGridFromCtr( masterproc, nX, nY, lonMidArr, latMidArr, RC )
     Deallocate(lonMidArr)
     Deallocate(latMidArr)
 
@@ -667,6 +667,7 @@ contains
     do i=begchunk, endchunk
        ! This would be gc_init_stateobj except that that is only in v11-02+ and
        ! also it requires history/diag components which aren't yet dealt with
+       rootCPU = (masterproc .and. (i == begchunk))
        Call Init_State_Met( rootCPU, nX, nY, nZ, State_Met(i), RC )
        If (rc.ne.0) Call endrun('Could not initialize State_Met')
        Call Init_State_Chm( rootCPU, nX, nY, nZ, &
@@ -726,7 +727,6 @@ contains
   real(fp)             :: dt_min_real
   integer              :: dt_min
   integer, save        :: dt_min_last = -1
-  logical              :: rootCPU
  
   ! At v11-01, GC still stored timesteps as integer minute counts 
   dt_min_real = real(dt/60.0e+0_r8,fp)
