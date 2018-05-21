@@ -896,6 +896,10 @@ contains
     use cam_history,      only: outfld
     use camsrfexch,       only: cam_in_t, cam_out_t
 
+    use dao_mod,          only: set_dry_surface_pressure
+    use dao_mod,          only: airqnt
+    use pressure_mod,     only: set_floating_pressures
+
     real(r8),            intent(in)    :: dt          ! time step
     type(physics_state), intent(in)    :: state       ! Physics state variables
     type(physics_ptend), intent(out)   :: ptend       ! indivdual parameterization tendencies
@@ -959,6 +963,19 @@ contains
        end if
     end do
     call physics_ptend_init(ptend, state%psetcols, 'chemistry', lq=lq)
+
+    ! 1. Update State_Met etc for this timestep (fake it for now)
+    !State_Met(lchnk)%PS1_WET = 1013.25e+0_fp
+    !Call Set_Dry_Surface_Pressure(State_Met(lchnk), 1)
+
+    !! Set surface pressures to match those in input
+    !State_Met(lchnk)%PSC2_WET = State_Met(lchnk)%PS1_WET
+    !State_Met(lchnk)%PSC2_DRY = State_Met(lchnk)%PS1_DRY
+    !Call Set_Floating_Pressures( masterproc, State_Met(lchnk), RC )
+
+    !! Set quantities of interest but do not change VMRs
+    !Call AirQnt( masterproc, Input_Opt, State_Met(lchnk), &
+    !             State_Chm(lchnk), RC, update_mixing_ratio=.False. )
 
     !if (masterproc) write(iulog,*) ' --> TEND SIZE: ', size(state%ncol)
     !if (masterproc) write(iulog,'(a,2(x,I6))') ' --> TEND SIDE:  ', lbound(state%ncol),ubound(state%ncol)
