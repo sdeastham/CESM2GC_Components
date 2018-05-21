@@ -783,6 +783,25 @@ contains
        deallocate(col_area)
     end do
 
+    ! Initialize (mostly unused) diagnostic arrays
+    ! WARNING: This routine likely calls on modules which are currently excluded
+    ! from the GC-CESM build (eg diag03)
+    ! Call Initialize( masterproc, Input_Opt, 2, RC )
+    ! Call Initialize( masterproc, Input_Opt, 3, RC )
+  
+    ! Get Ap and Bp from CAM at pressure edges
+    Allocate(Ap_CAM_Flip(nZ+1),stat=ierr)
+       If (ierr.ne.0) Call endrun('Failure while allocating Ap_CAM_Flip')
+    Allocate(Bp_CAM_Flip(nZ+1),stat=ierr)
+       If (ierr.ne.0) Call endrun('Failure while allocating Bp_CAM_Flip')
+    Ap_CAM_Flip = 0.0e+0_fp
+    Bp_CAM_Flip = 0.0e+0_fp
+    Do i=1,(nZ+1)
+       Ap_CAM_Flip(i) = hyai(nZ+2-i) * ps0 * 100.0e+0_r8
+       Bp_CAM_Flip(i) = hybi(nZ+2-i)
+    End Do
+    Call Init_Pressure( masterproc, Ap_CAM_Flip, Bp_CAM_Flip ) 
+    Deallocate(Ap_CAM_Flip,Bp_CAM_Flip)
 
     ! Init_FJX..
     ! Init_Pressure...
@@ -792,7 +811,6 @@ contains
     ! Emissions_Init...
     ! Init_UCX...
     ! Convert_Spc_Units...
-
     ! Can add history output here too with the "addfld" & "add_default" routines
     ! Note that constituents are already output by default
 
@@ -965,6 +983,7 @@ contains
     use TOMS_mod,      only : cleanup_TOMS
     use C2H6_mod,      only : cleanup_C2H6
     use sulfate_mod,   only : cleanup_sulfate
+    use pressure_mod,  only : cleanup_pressure
 
     ! Special: cleans up after NDXX_Setup
     use Diag_mod,      only : cleanup_diag
