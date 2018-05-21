@@ -1061,6 +1061,11 @@ contains
     use C2H6_mod,      only : cleanup_C2H6
     use sulfate_mod,   only : cleanup_sulfate
     use pressure_mod,  only : cleanup_pressure
+    use flexchem_mod,  only : cleanup_flexchem
+
+    use cmn_size_mod,  only : cleanup_cmn_size
+    use cmn_o3_mod,    only : cleanup_cmn_o3
+    use cmn_fjx_mod,   only : cleanup_cmn_fjx
 
     ! Special: cleans up after NDXX_Setup
     use Diag_mod,      only : cleanup_diag
@@ -1084,14 +1089,18 @@ contains
     Call Cleanup_Aerosol
     Call Cleanup_Diag
     Call Cleanup_C2H6
+    Call Cleanup_FlexChem
     ! Loop over each chunk and clean up the state variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
        Call Cleanup_State_Met( rootCPU, State_Met(i), RC )
        Call Cleanup_State_Chm( rootCPU, State_Chm(i), RC )
     End Do
-    ! Clean up error module
+    ! Clean up error modules and lower-level modules
     Call Cleanup_Error
+    Call Cleanup_CMN_SIZE( masterproc, RC )
+    Call Cleanup_CMN_FJX(  masterproc, RC )
+    Call Cleanup_CMN_O3(   masterproc, RC )
     ! Clean up input_opt
     Call Cleanup_Input_Opt( masterproc, Input_Opt, RC )
     ! Finally deallocate the variables in full
