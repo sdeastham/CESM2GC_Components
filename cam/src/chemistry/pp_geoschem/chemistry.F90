@@ -324,6 +324,10 @@ contains
     use mpishorthand
     use cam_abortutils, only : endrun
 
+    ! For getting grid area
+    use physconst,    only : rearth
+    use phys_grid,    only : get_area_all_p
+
     ! Use GEOS-Chem versions of physical constants
     use physconstants,  only : pi, pi_180
 
@@ -380,6 +384,7 @@ contains
     real(fp), allocatable :: lonMidArr(:,:), latMidArr(:,:)
     real(r8), allocatable :: linozData(:,:,:,:)
 
+    real(r8), allocatable :: col_area(:)
     logical               :: rootCPU
 
     ! lchnk: which chunks we have on this process
@@ -762,6 +767,21 @@ contains
     !           Tagged simulations (all), Global_CH4
 
     ! === END GC_INIT_EXTRA ===
+
+    ! Set area...
+    do i=begchunk,endchunk
+       allocate(col_area(ncol(i)),stat=ierr)
+       If (ierr.ne.0) Call endrun('Failure while allocating area')
+       call get_area_all_p(i, ncol(i), col_area)
+       ! Set default value (in case of chunks with fewer columns)
+       State_Met(i)%Area_M2 = 1.0e+10_fp
+       Do iX=1,nX
+       Do iY=1,ncol(i)
+          State_Met(i)%Area_M2(iX,iY,:) = real(col_area(iY) * rearth**2,fp)
+       End Do
+       End Do
+       deallocate(col_area)
+    end do
 
 
     ! Init_FJX..
