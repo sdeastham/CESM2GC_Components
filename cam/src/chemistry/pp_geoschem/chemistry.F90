@@ -345,6 +345,7 @@ contains
     use ucx_mod,       only : cfcyear
     use ucx_mod,       only : P_Ice_Supersat, T_NAT_Supercool
 
+    use error_mod,     only : init_error
     use drydep_mod,    only : init_drydep
 
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
@@ -385,8 +386,6 @@ contains
     Allocate(State_Met(begchunk:endchunk))
     Allocate(State_Chm(begchunk:endchunk))
    
-    rootCPU = MasterProc
-
     ! Set some basic flags
     Input_Opt%Max_Diag          = 1000
     Input_Opt%Max_Trcs          = 500
@@ -663,7 +662,11 @@ contains
     ! Start by setting some dummy timesteps - go with 5 minutes for now
     call gc_update_timesteps(300.0e+0_r8)
 
-    ! Initialize the state objects for each chunk
+    ! Initialize error mod
+    call Init_Error( masterproc, Input_Opt, RC )
+
+    ! Initialize the state objects for each chunk. This is like GC_Init_All in
+    ! v11-01 of GC-Classic
     do i=begchunk, endchunk
        ! This would be gc_init_stateobj except that that is only in v11-02+ and
        ! also it requires history/diag components which aren't yet dealt with
