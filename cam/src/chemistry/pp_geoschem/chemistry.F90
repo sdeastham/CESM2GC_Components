@@ -713,6 +713,32 @@ contains
     do i=begchunk,endchunk
        call gc_update_timesteps(i,300.0e+0_r8)
     end do
+
+    ! Initialize the state objects for each chunk
+    do i=begchunk, endchunk
+       ! This would be gc_init_stateobj except that that is only in v11-02+ and
+       ! also it requires history/diag components which aren't yet dealt with
+       Call Init_State_Met( rootCPU, nX, nY, nZ, State_Met(i), RC )
+       If (rc.ne.0) Call endrun('Could not initialize State_Met')
+       Call Init_State_Chm( rootCPU, nX, nY, nZ, &
+                            Input_Opt(i), State_Chm(i), &
+                            nDust + nAer, RC )
+       If (rc.ne.0) Call endrun('Could not initialize State_Chm')
+
+       ! Now replicate GC_Init_Extra...
+
+       ! Start with v/v dry (CAM standard)
+       State_Chm(i)%Spc_Units = 'v/v dry'
+    end do
+    ! Init_FJX..
+    ! Init_Pressure...
+    ! Init_PBL_Mix...
+    ! Init_Chemistry...
+    ! Init_TOMS...
+    ! Emissions_Init...
+    ! Init_UCX...
+    ! Convert_Spc_Units...
+
     ! Can add history output here too with the "addfld" & "add_default" routines
     ! Note that constituents are already output by default
 
@@ -871,6 +897,8 @@ contains
   subroutine chem_final
    
     use input_opt_mod, only : cleanup_input_opt
+    use state_chm_mod, only : cleanup_state_chm
+    use state_met_mod, only : cleanup_state_met
     use ucx_mod,       only : cleanup_ucx
     use linoz_mod,     only : cleanup_linoz
  
@@ -883,6 +911,8 @@ contains
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
        Call Cleanup_Input_Opt( rootCPU, Input_Opt(i), RC )
+       Call Cleanup_State_Met( rootCPU, State_Met(i), RC )
+       Call Cleanup_State_Chm( rootCPU, State_Chm(i), RC )
     End Do
     ! Clean up module variables
     Call Cleanup_Linoz
