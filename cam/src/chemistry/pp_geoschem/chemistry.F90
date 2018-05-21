@@ -116,7 +116,6 @@ contains
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_REGISTER'
     ! At the moment, we force nadv_chem=200 in the setup file
-    ntracers = 200
     do i = 1, ntracersmax
        ! TODO: Read input.geos in chem_readnl to get tracernames(1:ntracers)
        ! TODO: Get all other species properties here from species database
