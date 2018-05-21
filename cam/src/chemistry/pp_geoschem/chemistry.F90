@@ -907,10 +907,11 @@ contains
     ! Initial MMR for all species
     real(r8) :: mmr_beg(pcols,pver,nsls+ntracers)
     real(r8) :: mmr_end(pcols,pver,nsls+ntracers)
+    real(r8) :: mmr_tend(pcols,pver,nsls+ntracers)
 
     ! Mapping (?)
     logical :: lq(pcnst)
-    integer :: i,j,k,n, m
+    integer :: i,j,k,n,m
 
     integer :: lchnk, ncol
 
@@ -940,8 +941,6 @@ contains
     !call get_rlat_all_p( lchnk, ncol, rlats )
     !call get_rlon_all_p( lchnk, ncol, rlons )
 
-    ! 1. Update State_Met etc for this timestep
-
     ! 2. Copy tracers into State_Chm - again, remember to flip them
     lq(:) = .false.
     mmr_beg = 0.0e+0_r8
@@ -953,7 +952,7 @@ contains
           do k=1,pver
           ! CURRENTLY KG/KG DRY
           mmr_beg(j,k,m) = state%q(j,pver+1-k,n)
-          State_Chm(lchnk)%Species(1,j,k,m) = mmr_beg(j,k,m)
+          State_Chm(lchnk)%Species(1,j,k,m) = real(mmr_beg(j,k,m),fp)
           end do
           end do
           lq(n) = .true.
@@ -978,8 +977,9 @@ contains
           do j=1,ncol
           do k=1,pver
           ! CURRENTLY KG/KG
-          mmr_end(j,k,m) = State_Chm(lchnk)%Species(1,j,k,m)
-          ptend%q(j,pver+1-k,n) = (mmr_end(j,k,m)-mmr_beg(j,pver+1-k,n))/dt
+          mmr_end( j,k,m) = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
+          mmr_tend(j,k,m) = mmr_end(j,k,m) - mmr_beg(j,k,m)
+          ptend%q(j,pver+1-k,n) = (mmr_end(j,k,m)-mmr_beg(j,k,m))/dt
           end do
           end do
        end if
