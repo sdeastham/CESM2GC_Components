@@ -376,6 +376,7 @@ contains
     use TOMS_mod,      only : init_TOMS
     use C2H6_mod,      only : init_C2H6
     use pressure_mod,  only : init_pressure
+    use chemistry_mod, only : init_chemistry
     !use MODIS_LAI_Mod, Only : init_MODIS_LAI
 
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
@@ -817,7 +818,11 @@ contains
     Call Init_Pressure( masterproc, Ap_CAM_Flip, Bp_CAM_Flip ) 
     Deallocate(Ap_CAM_Flip,Bp_CAM_Flip)
 
-    ! Init_FJX..
+    If (Input_Opt%Its_A_FullChem_Sim.or.Input_Opt%Its_An_Aerosol_Sim) Then
+       ! This also initializes Fast-JX
+       Call Init_Chemistry( masterproc, Input_Opt, State_Chm(begchunk), RC )
+    End If
+
     ! Init_Pressure...
     ! Init_PBL_Mix...
     ! Init_Chemistry...
