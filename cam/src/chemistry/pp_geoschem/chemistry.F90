@@ -208,8 +208,10 @@ contains
     logical :: menuFound, validSLS
 
     ! Set paths
-    inputGeosPath='/n/regal/jacob_lab/seastham/CESM2/CESM2_GC2/ut_src/runs/4x5_standard/input.geos.template'
-    chemInputsDir='/n/holylfs/EXTERNAL_REPOS/GEOS-CHEM/gcgrid/gcdata/ExtData/CHEM_INPUTS/'
+    !inputGeosPath='/n/regal/jacob_lab/seastham/CESM2/CESM2_GC2/ut_src/runs/4x5_standard/input.geos.template'
+    !chemInputsDir='/n/holylfs/EXTERNAL_REPOS/GEOS-CHEM/gcgrid/gcdata/ExtData/CHEM_INPUTS/'
+    inputGeosPath='/net/d05/data/SDEData/CESM2/ut_src/runs/4x5_standard/input.geos.template'
+    chemInputsDir='/net/d06/data/GCdata/ExtData/CHEM_INPUTS/'
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_READNL'
 
