@@ -22,7 +22,7 @@ module chemistry
   use state_chm_mod,       only : chmstate
 
   ! GEOS-Chem precision specifiers
-  use precision_mod,       only : fp
+  use precision_mod,       only : fp, f4
  
   ! GEOS-Chem error codes
   use errcode_mod
@@ -442,6 +442,7 @@ contains
     use pressure_mod,  only : init_pressure
     use chemistry_mod, only : init_chemistry
     !use MODIS_LAI_Mod, Only : init_MODIS_LAI
+    use ucx_mod,       only : init_ucx
 
     use state_chm_mod,    only: Ind_
 
@@ -829,8 +830,10 @@ contains
     Call Init_ChemGrid( masterproc, Input_Opt, RC )
     If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
 
-    Call Init_TOMS( masterproc, Input_Opt, RC )
-    If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
+    If (Input_Opt%LChem) Then
+       Call Init_TOMS( masterproc, Input_Opt, RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
+    End If
 
     Call Init_C2H6( masterproc, Input_Opt, RC )
     If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemgrid')
@@ -882,6 +885,16 @@ contains
     If (Input_Opt%Its_A_FullChem_Sim.or.Input_Opt%Its_An_Aerosol_Sim) Then
        ! This also initializes Fast-JX
        Call Init_Chemistry( masterproc, Input_Opt, State_Chm(begchunk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize chemistry')
+    End If
+
+    ! Initialize HEMCO?
+!    CALL EMISSIONS_INIT ( am_I_Root, Input_Opt, State_Met, State_Chm, RC, &
+!                          HcoConfig=HcoConfig )
+!    ASSERT_(RC==GC_SUCCESS)
+
+    If (Input_Opt%LChem.and.Input_Opt%LUCX) Then
+       Call Init_UCX(masterproc, Input_Opt, State_Chm(begchunk)) 
     End If
 
     ! Init_Pressure...
@@ -970,6 +983,12 @@ contains
     use dao_mod,          only: airqnt
     use pressure_mod,     only: set_floating_pressures
     use gc_grid_mod,      only: SetGridFromCtr
+    use pressure_mod,     only: accept_external_pedge
+    use time_mod,         only: accept_external_date_time
+    use strat_chem_mod,   only: init_strat_chem
+    use toms_mod,         only: compute_overhead_o3
+    use chemistry_mod,    only: do_chemistry
+    use wetscav_mod,      only: setup_wetscav
 
     ! For calculating SZA
     use orbit,            only: zenith
@@ -1014,6 +1033,9 @@ contains
  
     ! Calculating SZA
     real(r8)     :: calday
+
+    ! Because of strat chem
+    logical, save :: schem_ready=.false.
 
     logical      :: rootChunk
     integer      :: RC
@@ -1061,6 +1083,8 @@ contains
     Call SetGridFromCtr( rootChunk, nX, nY, lonMidArr, latMidArr, RC )
 
     ! 2. Copy tracers into State_Chm - again, remember to flip them
+    ! Data was received in kg/kg dry
+    State_Chm(lchnk)%Spc_Units = 'kg/kg dry'
     lq(:) = .false.
     mmr_beg = 0.0e+0_r8
     do n=1, pcnst
@@ -1217,27 +1241,80 @@ contains
     State_Met(lchnk)%OPTD =  State_Met(lchnk)%TAUCLI + State_Met(lchnk)%TAUCLW
     ! << === INCLUDES_BEFORE_RUN === >> 
 
-    ! 1. Update State_Met etc for this timestep (fake it for now)
-    !State_Met(lchnk)%PS1_WET = 1013.25e+0_fp
+    ! Eventually initialize/reset wetdep
+    IF ( Input_Opt%LConv .OR. Input_Opt%LChem .OR. Input_Opt%LWetD ) THEN
+       CALL SETUP_WETSCAV( rootChunk, Input_Opt, State_Met(lchnk), State_Chm(lchnk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to set up wet scavenging')
+    ENDIF
+
+    ! Pass time values obtained from the ESMF environment to GEOS-Chem
+    CALL Accept_External_Date_Time( am_I_Root      = rootChunk,  &
+                                    value_NYMD     = 20000101,   &  
+                                    value_NHMS     = 0000,       &  
+                                    value_YEAR     = 2000,       &  
+                                    value_MONTH    = 01,         &  
+                                    value_DAY      = 01,         &  
+                                    value_DAYOFYR  = 001,        &  
+                                    value_HOUR     = 00,         &  
+                                    value_MINUTE   = 00,         &  
+                                    value_HELAPSED = 0.0e+0_f4,  & 
+                                    value_UTC      = 0.0e+0_f4,  &
+                                    RC             = RC         )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to update time in GEOS-Chem')
+
+    Call Accept_External_PEdge( am_I_Root = rootChunk,        &
+                                State_Met = State_Met(lchnk), &
+                                RC        = RC                )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to update pressure edges')
+
+    ! Calculate State_Met etc for this timestep
+    ! Use the CAM psdry fields instead of using the GC calculation
     !Call Set_Dry_Surface_Pressure(State_Met(lchnk), 1)
+    State_Met(lchnk)%PS1_DRY (1,:) = state%psdry(:)
+    State_Met(lchnk)%PS2_DRY (1,:) = state%psdry(:)
 
-    !! Set surface pressures to match those in input
-    !State_Met(lchnk)%PSC2_WET = State_Met(lchnk)%PS1_WET
-    !State_Met(lchnk)%PSC2_DRY = State_Met(lchnk)%PS1_DRY
-    !Call Set_Floating_Pressures( masterproc, State_Met(lchnk), RC )
+    ! Set surface pressures to match those in input
+    State_Met(lchnk)%PSC2_WET = State_Met(lchnk)%PS1_WET
+    State_Met(lchnk)%PSC2_DRY = State_Met(lchnk)%PS1_DRY
+    Call Set_Floating_Pressures( rootChunk, State_Met(lchnk), RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to set floating pressures')
 
-    !! Set quantities of interest but do not change VMRs
-    !Call AirQnt( masterproc, Input_Opt, State_Met(lchnk), &
-    !             State_Chm(lchnk), RC, update_mixing_ratio=.False. )
+    ! Set quantities of interest but do not change VMRs
+    Call AirQnt( rootChunk, Input_Opt, State_Met(lchnk), &
+                 State_Chm(lchnk), RC, update_mixing_ratio=.False. )
+    If (rc.ne.GC_SUCCESS) Call endrun('Failed to calculate air properties')
+
+    ! Initialize strat chem if not already done. This has to be done here because
+    ! it needs to have non-zero values in State_Chm%AD, which only happens after
+    ! the first call to AirQnt
+    IF ( (.not.schem_ready).and. Input_Opt%LSCHEM ) THEN
+       CALL INIT_STRAT_CHEM( rootChunk, Input_Opt, State_Chm(lchnk), State_Met(lchnk), RC )
+       If (rc.ne.GC_SUCCESS) Call endrun('Could not initialize strat-chem')
+       schem_ready = .True.
+    ENDIF
+
+    ! Run chemistry
+    If (Input_Opt%LChem) Then
+       Call Compute_Overhead_O3( rootChunk, 1, &
+                Input_Opt%Use_O3_From_Met, State_Met(lchnk)%TO3 )
+       Call Do_Chemistry( am_I_Root      = rootChunk,        &
+                          Input_Opt      = Input_Opt,        &
+                          State_Chm      = State_Chm(lchnk), &
+                          State_Met      = State_Met(lchnk), &
+                          RC             = RC                )
+    End If
 
     !if (masterproc) write(iulog,*) ' --> TEND SIZE: ', size(state%ncol)
     !if (masterproc) write(iulog,'(a,2(x,I6))') ' --> TEND SIDE:  ', lbound(state%ncol),ubound(state%ncol)
     if (rootChunk) write(iulog,'(a)') 'GCCALL CHEM_TIMESTEP_TEND'
 
+    ! Make sure State_Chm(lchnk) is back in kg/kg dry!
+
+    ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
+    State_Chm(lchnk)%Species(1,:,:,iH2O) = mmr_beg(:,:,iH2O)
+
     ! NOTE: Re-flip all the arrays vertically or suffer the consequences
     ! ptend%q dimensions: [column, ?, species]
-    !ptend%q(:ncol,:,:) = 0.0e+0_r8 
-    !ptend%q(:ncol,:,:) = 0.0e+0_r8 
     ptend%q(:,:,:) = 0.0e+0_r8 
     mmr_end = 0.0e+0_r8
     do n=1, pcnst
@@ -1246,10 +1323,10 @@ contains
           i=1
           do j=1,ncol
           do k=1,pver
-          ! CURRENTLY KG/KG
-          mmr_end( j,k,m) = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
-          mmr_tend(j,k,m) = mmr_end(j,k,m) - mmr_beg(j,k,m)
-          ptend%q(j,pver+1-k,n) = (mmr_end(j,k,m)-mmr_beg(j,k,m))/dt
+             ! CURRENTLY KG/KG
+             mmr_end( j,k,m) = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
+             mmr_tend(j,k,m) = mmr_end(j,k,m) - mmr_beg(j,k,m)
+             ptend%q(j,pver+1-k,n) = (mmr_end(j,k,m)-mmr_beg(j,k,m))/dt
           end do
           end do
        end if
@@ -1290,30 +1367,33 @@ contains
 !===============================================================================
   subroutine chem_final
    
-    use input_opt_mod, only : cleanup_input_opt
-    use state_chm_mod, only : cleanup_state_chm
-    use state_met_mod, only : cleanup_state_met
-    use error_mod,     only : cleanup_error
+    use input_opt_mod,   only : cleanup_input_opt
+    use state_chm_mod,   only : cleanup_state_chm
+    use state_met_mod,   only : cleanup_state_met
+    use error_mod,       only : cleanup_error
 
-    use ucx_mod,       only : cleanup_ucx
-    use linoz_mod,     only : cleanup_linoz
-    use drydep_mod,    only : cleanup_drydep
-    use wetscav_mod,   only : cleanup_wetscav
-    !use MODIS_LAI_Mod, Only : cleanup_MODIS_LAI
-    use carbon_mod,    only : cleanup_carbon
-    use dust_mod,      only : cleanup_dust
-    use seasalt_mod,   only : cleanup_seasalt
-    use aerosol_mod,   only : cleanup_aerosol
-    use chemgrid_mod,  only : cleanup_chemgrid
-    use TOMS_mod,      only : cleanup_TOMS
-    use C2H6_mod,      only : cleanup_C2H6
-    use sulfate_mod,   only : cleanup_sulfate
-    use pressure_mod,  only : cleanup_pressure
-    use flexchem_mod,  only : cleanup_flexchem
+    use ucx_mod,         only : cleanup_ucx
+    use linoz_mod,       only : cleanup_linoz
+    use drydep_mod,      only : cleanup_drydep
+    use wetscav_mod,     only : cleanup_wetscav
+    !use MODIS_LAI_Mod,   Only : cleanup_MODIS_LAI
+    use carbon_mod,      only : cleanup_carbon
+    use dust_mod,        only : cleanup_dust
+    use seasalt_mod,     only : cleanup_seasalt
+    use aerosol_mod,     only : cleanup_aerosol
+    use chemgrid_mod,    only : cleanup_chemgrid
+    use TOMS_mod,        only : cleanup_TOMS
+    use C2H6_mod,        only : cleanup_C2H6
+    use sulfate_mod,     only : cleanup_sulfate
+    use pressure_mod,    only : cleanup_pressure
+    use flexchem_mod,    only : cleanup_flexchem
+    use strat_chem_mod,  only : init_strat_chem
+    use strat_chem_mod,  only : cleanup_strat_chem
 
-    use cmn_size_mod,  only : cleanup_cmn_size
-    use cmn_o3_mod,    only : cleanup_cmn_o3
-    use cmn_fjx_mod,   only : cleanup_cmn_fjx
+    use cmn_size_mod,    only : cleanup_cmn_size
+    use cmn_o3_mod,      only : cleanup_cmn_o3
+    use cmn_fjx_mod,     only : cleanup_cmn_fjx
+    use ucx_mod,         only : cleanup_ucx
 
     ! Special: cleans up after NDXX_Setup
     use Diag_mod,      only : cleanup_diag
@@ -1338,6 +1418,8 @@ contains
     Call Cleanup_Diag
     Call Cleanup_C2H6
     Call Cleanup_FlexChem
+    Call Cleanup_Strat_Chem
+    Call Cleanup_UCX( masterproc )
     ! Loop over each chunk and clean up the state variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
