@@ -27,6 +27,9 @@ module chemistry
   ! GEOS-Chem error codes
   use errcode_mod
 
+  ! Exit routine in CAM
+  use cam_abortutils, only : endrun
+
   implicit none
   private
   save
@@ -98,11 +101,22 @@ contains
   subroutine chem_register
 
     use physics_buffer, only : pbuf_add_field, dtype_r8
+
+    use state_chm_mod,  only : init_state_chm, cleanup_state_chm
+    use state_chm_mod,  only : Ind_
+    use input_opt_mod,  only : set_input_opt,  cleanup_input_opt
+    USE Species_Mod,    only : species
+    
     !----------------------------------------------------------------------- 
     ! 
     ! Purpose: register advected constituents for chemistry
     ! 
     !-----------------------------------------------------------------------
+    ! Need to generate a temporary species database - therefore temp State_Chm
+    Type(ChmState)         :: SC
+    Type(OptInput)         :: IO
+    TYPE(Species), POINTER :: ThisSpc
+
     integer            :: i, n
     real(r8)           :: cptmp
     real(r8)           :: qmin
@@ -113,6 +127,8 @@ contains
     logical            :: ic_from_cam2
     logical            :: has_fixed_ubc
     logical            :: has_fixed_ubflx
+
+    integer            :: rc
     ! SDE 2018-05-02: This seems to get called before anything else
     ! That includes CHEM_INIT
     ! At this point, mozart calls SET_SIM_DAT, which is specified by each
@@ -121,26 +137,64 @@ contains
     ! data in other places, notably in "chem_mods"
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_REGISTER'
+
+    ! Generate fake state_chm
+    IO%Max_Diag            = 1000
+    IO%Max_Trcs            = 500
+    IO%Max_Memb            = 15
+    IO%Max_Fams            = 250
+    IO%Max_Dep             = 500
+
+    IO%RootCPU             = .False.
+    Call Set_Input_Opt(.False.,IO,RC)
+    If (rc.ne.GC_SUCCESS) Call endrun('Could not generate reference input options object')
+
+    ! Options needed by Init_State_Chm
+    IO%ITS_A_FULLCHEM_SIM  = .True.
+    IO%LUCX                = .True.
+    IO%LPRT                = .False.
+    IO%N_Advect            = nTracers
+    Do I=1,nTracers
+       IO%AdvectSpc_Name(I) = Trim(tracernames(I))
+    End Do
+    IO%SalA_rEdge_um(1)    = 0.01e+0_fp
+    IO%SalA_rEdge_um(2)    = 0.50e+0_fp
+    IO%SalC_rEdge_um(1)    = 0.50e+0_fp
+    IO%SalC_rEdge_um(2)    = 8.00e+0_fp
+
+    ! Prevent reporting
+    IO%rootCPU             = .False.
+    Input_Opt%myCPU        = myCPU
+    Call Init_State_Chm( .False., 1, 1, 1, &
+                         IO, SC, 10, RC )
+    If (rc.ne.GC_SUCCESS) Call endrun('Could not generate reference species database')
+
     ! At the moment, we force nadv_chem=200 in the setup file
     ! Default
     map2gc = -1
     do i = 1, ntracersmax
-       ! TODO: Read input.geos in chem_readnl to get tracernames(1:ntracers)
-       ! TODO: Get all other species properties here from species database
-       ! Hard-code for now
-       select case (tracernames(i))
-          case ('BCPI')
-             lng_name = 'Hydrophilic black carbon'
-             ! Molar mass (g/mol)
-             adv_mass(i) = 1000.0e+0_r8 * (0.012e+0_r8)
-          case ('OCS')
-             lng_name = 'Carbonyl sulfide'
-             ! Molar mass (g/mol)
-             adv_mass(i) = 1000.0e+0_r8 * (0.060e+0_r8)
-          case default
-             lng_name = tracernames(i)
-             adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
-       end select
+       if (i.le.ntracers) then
+       n = Ind_(tracernames(i))
+       ThisSpc => SC%SpcData(N)%Info
+       lng_name    = Trim(ThisSpc%FullName)
+       adv_mass(i) = real(ThisSpc%MW_g,r8)
+       !select case (tracernames(i))
+       !   case ('BCPI')
+       !      lng_name = 'Hydrophilic black carbon'
+       !      ! Molar mass (g/mol)
+       !      adv_mass(i) = 1000.0e+0_r8 * (0.012e+0_r8)
+       !   case ('OCS')
+       !      lng_name = 'Carbonyl sulfide'
+       !      ! Molar mass (g/mol)
+       !      adv_mass(i) = 1000.0e+0_r8 * (0.060e+0_r8)
+       !   case default
+       !      lng_name = tracernames(i)
+       !      adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
+       !end select
+       else
+          lng_name = trim(tracernames(i))
+          adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
+       endif
        ! dummy value for specific heat of constant pressure (Cp)
        cptmp = 666._r8
        ! minimum mixing ratio
@@ -169,6 +223,8 @@ contains
        ! concentration of State_Chm(x)%Species(1,iCol,iLev,i) with data from
        ! constituent n
        map2gc(n) = i
+       ! Nullify pointer
+       ThisSpc => NULL()
     end do
 
     ! Now unadvected species
@@ -186,6 +242,10 @@ contains
     !map2chm(n) = i
     !indices(i) = 0
     ! ===== SDE DEBUG =====
+
+    ! Clean up
+    Call Cleanup_State_Chm( .False., SC, RC )
+    Call Cleanup_Input_Opt( .False., IO, RC )
 
   end subroutine chem_register
 
@@ -288,7 +348,6 @@ contains
     logical :: chem_is_active
     !-----------------------------------------------------------------------
     chem_is_active = .true.
-    if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_IS_ACTIVE'
   end function chem_is_active
 
 !================================================================================================
@@ -402,7 +461,7 @@ contains
     real(r8), allocatable :: col_area(:)
     real(fp), allocatable :: Ap_CAM_Flip(:), Bp_CAM_Flip(:)
 
-    logical               :: rootCPU
+    logical               :: rootCPU, rootChunk
 
     ! lchnk: which chunks we have on this process
     lchnk = phys_state%lchnk
@@ -430,12 +489,6 @@ contains
     Input_Opt%Max_Fams          = 250
     Input_Opt%Max_Dep           = 500
 
-    Input_Opt%Linoz_NLevels     = 25
-    Input_Opt%Linoz_NLat        = 18
-    Input_Opt%Linoz_NMonths     = 12
-    Input_Opt%Linoz_NFields     = 7
-    Input_Opt%RootCPU           = masterproc
-
     ! Note - this is called AFTER chem_readnl, after X, and after 
     ! every constituent has had its initial conditions read. Any
     ! constituent which is not found in the CAM restart file will
@@ -456,6 +509,7 @@ contains
                            RC             = RC )
  
     Input_Opt%myCPU             = myCPU
+    Input_Opt%rootCPU           = masterproc
 
     ! TODO: Mimic GEOS-Chem's reading of input options
     !If (masterproc) then
@@ -861,7 +915,6 @@ contains
   subroutine gc_update_timesteps(dt)
 
   use time_mod,       only : set_timesteps
-  use cam_abortutils, only : endrun
 
   real(r8), intent(in) :: dt
   real(fp)             :: dt_min_real
@@ -903,9 +956,12 @@ contains
     use cam_history,      only: outfld
     use camsrfexch,       only: cam_in_t, cam_out_t
 
+    use phys_grid,        only: get_ncols_p, get_rlat_all_p, get_rlon_all_p
+
     use dao_mod,          only: set_dry_surface_pressure
     use dao_mod,          only: airqnt
     use pressure_mod,     only: set_floating_pressures
+    use gc_grid_mod,      only : SetGridFromCtr
 
     real(r8),            intent(in)    :: dt          ! time step
     type(physics_state), intent(in)    :: state       ! Physics state variables
@@ -923,22 +979,34 @@ contains
     ! Mapping (?)
     logical :: lq(pcnst)
     integer :: i,j,k,n,m
+    integer :: nX, nY
 
     integer :: lchnk, ncol
 
     integer      ::  latndx(pcols)                         ! chunk lat indicies
     integer      ::  lonndx(pcols)                         ! chunk lon indicies
-    real(r8), dimension(pcols) :: &
+    real(r8), dimension(state%ncol) :: &
          zen_angle, &                                      ! solar zenith angles
          zsurf, &                                          ! surface height (m)
          rlats, rlons                                      ! chunk latitudes and longitudes (radians)
+
+    real(fp)     :: lonMidArr(1,pcols), latMidArr(1,pcols)
+    integer      :: imaxloc(1)
+
+    logical      :: rootChunk
+    integer      :: RC
+
     ! Here's where you'll call DO_CHEMISTRY
     ! NOTE: State_Met etc are in an ARRAY - so we will want to always pass
     ! State_Met%(lchnk) and so on
+
     ! lchnk: which chunk we have on this process
     lchnk = state%lchnk
     ! ncol: number of atmospheric columns on this chunk
     ncol  = state%ncol
+  
+    ! Am I the first chunk on the first CPU?
+    rootChunk = ( masterproc.and.(lchnk==begchunk) )
 
     ! Need to update the timesteps throughout the code
     call gc_update_timesteps(dt)
@@ -946,11 +1014,26 @@ contains
     ! Need to be super careful that the module arrays are updated and correctly
     ! set. NOTE: First thing - you'll need to flip all the data vertically
 
-    ! Check that the chunk lat/lons haven't changed
-    !call get_lat_all_p( lchnk, ncol, latndx )
-    !call get_lon_all_p( lchnk, ncol, lonndx )
-    !call get_rlat_all_p( lchnk, ncol, rlats )
-    !call get_rlon_all_p( lchnk, ncol, rlons )
+    nX = 1
+    nY = ncol
+
+    ! Update the grid lat/lons since they are module variables
+    ! Assume (!) that area hasn't changed for now, as GEOS-Chem will
+    ! retrieve this from State_Met which is chunked
+    call get_rlat_all_p( lchnk, ncol, rlats )
+    call get_rlon_all_p( lchnk, ncol, rlons )
+
+    lonMidArr = 0.0e+0_fp
+    latMidArr = 0.0e+0_fp
+    do i=1,nX
+    do j=1,nY
+       lonMidArr(i,j) = rlons(j)
+       latMidArr(i,j) = rlats(j)
+    end do
+    end do
+   
+    ! Update the grid 
+    Call SetGridFromCtr( rootChunk, nX, nY, lonMidArr, latMidArr, RC )
 
     ! 2. Copy tracers into State_Chm - again, remember to flip them
     lq(:) = .false.
@@ -971,6 +1054,58 @@ contains
     end do
     call physics_ptend_init(ptend, state%psetcols, 'chemistry', lq=lq)
 
+    ! << === INCLUDES_BEFORE_RUN === >>
+    State_Met(lchnk)%ALBD            = 0.0e+0_fp 
+    State_Met(lchnk)%CLDFRC          = 0.0e+0_fp 
+    State_Met(lchnk)%EFLUX           = 0.0e+0_fp 
+    State_Met(lchnk)%HFLUX           = 0.0e+0_fp 
+    State_Met(lchnk)%FRCLND          = 0.0e+0_fp 
+    State_Met(lchnk)%FRLAND          = 0.0e+0_fp 
+    State_Met(lchnk)%FROCEAN         = 0.0e+0_fp 
+    State_Met(lchnk)%FRLAKE          = 0.0e+0_fp 
+    State_Met(lchnk)%FRLANDIC        = 0.0e+0_fp 
+    State_Met(lchnk)%PHIS            = 0.0e+0_fp 
+    State_Met(lchnk)%GWETROOT        = 0.0e+0_fp 
+    State_Met(lchnk)%GWETTOP         = 0.0e+0_fp 
+    State_Met(lchnk)%LAI             = 0.0e+0_fp 
+    State_Met(lchnk)%PARDR           = 0.0e+0_fp 
+    State_Met(lchnk)%PARDF           = 0.0e+0_fp 
+    State_Met(lchnk)%PBLH            = 0.0e+0_fp 
+    State_Met(lchnk)%PRECANV         = 0.0e+0_fp 
+    State_Met(lchnk)%PRECCON         = 0.0e+0_fp 
+    State_Met(lchnk)%PRECLSC         = 0.0e+0_fp  
+    State_Met(lchnk)%PRECTOT         = 0.0e+0_fp 
+    State_Met(lchnk)%TROPP           = 0.0e+0_fp 
+    State_Met(lchnk)%PS1_WET         = 0.0e+0_fp 
+    State_Met(lchnk)%PS2_WET         = 0.0e+0_fp 
+    State_Met(lchnk)%SLP             = 0.0e+0_fp 
+    State_Met(lchnk)%TS              = 0.0e+0_fp 
+    State_Met(lchnk)%TSKIN           = 0.0e+0_fp 
+    State_Met(lchnk)%SWGDN           = 0.0e+0_fp 
+    State_Met(lchnk)%TO3             = 0.0e+0_fp 
+    State_Met(lchnk)%SNODP           = 0.0e+0_fp 
+    State_Met(lchnk)%SNOMAS          = 0.0e+0_fp 
+    State_Met(lchnk)%SUNCOS          = 0.0e+0_fp 
+    State_Met(lchnk)%SUNCOSmid       = 0.0e+0_fp 
+    State_Met(lchnk)%U10M            = 0.0e+0_fp 
+    State_Met(lchnk)%USTAR           = 0.0e+0_fp 
+    State_Met(lchnk)%V10M            = 0.0e+0_fp 
+    State_Met(lchnk)%Z0              = 0.0e+0_fp 
+
+    DO J=1,nY
+    DO I=1,nX
+       IMAXLOC = MAXLOC( (/ State_Met%FRLAND(I,J) +      &
+                            State_Met%FRLANDIC(I,J) +    &
+                            State_Met%FRLAKE(I,J),       &
+                            State_Met%FRSEAICE(I,J),     &
+                            State_Met%FROCEAN(I,J) -     &
+                            State_Met%FRSEAICE(I,J) /) )
+       IF ( IMAXLOC(1) == 3 ) IMAXLOC(1) = 0 ! reset ocean to 0
+       State_Met%LWI(I,J) = FLOAT( IMAXLOC(1) )
+    ENDDO
+    ENDDO
+    ! << === INCLUDES_BEFORE_RUN === >> 
+
     ! 1. Update State_Met etc for this timestep (fake it for now)
     !State_Met(lchnk)%PS1_WET = 1013.25e+0_fp
     !Call Set_Dry_Surface_Pressure(State_Met(lchnk), 1)
@@ -986,7 +1121,7 @@ contains
 
     !if (masterproc) write(iulog,*) ' --> TEND SIZE: ', size(state%ncol)
     !if (masterproc) write(iulog,'(a,2(x,I6))') ' --> TEND SIDE:  ', lbound(state%ncol),ubound(state%ncol)
-    if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_TIMESTEP_TEND'
+    if (rootChunk) write(iulog,'(a)') 'GCCALL CHEM_TIMESTEP_TEND'
 
     ! NOTE: Re-flip all the arrays vertically or suffer the consequences
     ! ptend%q dimensions: [column, ?, species]
@@ -1162,7 +1297,17 @@ contains
 
     type(physics_state),    intent(in)    :: state   ! Physics state variables
     type(cam_in_t),         intent(inout) :: cam_in  ! import state
-    if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_EMISSIONS'
+
+    integer :: lchnk, ncol
+    logical :: rootChunk
+
+    ! lchnk: which chunk we have on this process
+    lchnk = state%lchnk
+    ! ncol: number of atmospheric columns on this chunk
+    ncol  = state%ncol
+    rootChunk = (masterproc.and.(lchnk.eq.begchunk))
+
+    if (rootChunk) write(iulog,'(a)') 'GCCALL CHEM_EMISSIONS'
 
   end subroutine chem_emissions
 
