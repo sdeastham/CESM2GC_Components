@@ -1228,8 +1228,8 @@ contains
        State_Met(lchnk)%REEVAPLS(1,j,l)        = 0.0e+0_fp 
        State_Met(lchnk)%SPHU1   (1,j,l)        = qh2o(j,nZ+1-l) * 1.0e+3_fp ! g/kg
        State_Met(lchnk)%SPHU2   (1,j,l)        = qh2o(j,nZ+1-l) * 1.0e+3_fp ! g/kg
-       State_Met(lchnk)%TMPU1   (1,j,l)        = state%t(j,nZ+1-k)
-       State_Met(lchnk)%TMPU2   (1,j,l)        = state%t(j,nZ+1-k)
+       State_Met(lchnk)%TMPU1   (1,j,l)        = state%t(j,nZ+1-l)
+       State_Met(lchnk)%TMPU2   (1,j,l)        = state%t(j,nZ+1-l)
     end do
     end do
 
@@ -1270,8 +1270,8 @@ contains
     ! Calculate State_Met etc for this timestep
     ! Use the CAM psdry fields instead of using the GC calculation
     !Call Set_Dry_Surface_Pressure(State_Met(lchnk), 1)
-    State_Met(lchnk)%PS1_DRY (1,:) = state%psdry(:)
-    State_Met(lchnk)%PS2_DRY (1,:) = state%psdry(:)
+    State_Met(lchnk)%PS1_DRY (1,:) = state%psdry(:)*0.01e+0_fp
+    State_Met(lchnk)%PS2_DRY (1,:) = state%psdry(:)*0.01e+0_fp
 
     ! Set surface pressures to match those in input
     State_Met(lchnk)%PSC2_WET = State_Met(lchnk)%PS1_WET
