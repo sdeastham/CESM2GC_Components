@@ -1176,14 +1176,14 @@ contains
 
     DO J=1,nY
     DO I=1,nX
-       IMAXLOC = MAXLOC( (/ State_Met%FRLAND(I,J) +      &
-                            State_Met%FRLANDIC(I,J) +    &
-                            State_Met%FRLAKE(I,J),       &
-                            State_Met%FRSEAICE(I,J),     &
-                            State_Met%FROCEAN(I,J) -     &
-                            State_Met%FRSEAICE(I,J) /) )
+       IMAXLOC = MAXLOC( (/ State_Met(lchnk)%FRLAND(I,J) +      &
+                            State_Met(lchnk)%FRLANDIC(I,J) +    &
+                            State_Met(lchnk)%FRLAKE(I,J),       &
+                            State_Met(lchnk)%FRSEAICE(I,J),     &
+                            State_Met(lchnk)%FROCEAN(I,J) -     &
+                            State_Met(lchnk)%FRSEAICE(I,J) /) )
        IF ( IMAXLOC(1) == 3 ) IMAXLOC(1) = 0 ! reset ocean to 0
-       State_Met%LWI(I,J) = FLOAT( IMAXLOC(1) )
+       State_Met(lchnk)%LWI(I,J) = FLOAT( IMAXLOC(1) )
     ENDDO
     ENDDO
 
