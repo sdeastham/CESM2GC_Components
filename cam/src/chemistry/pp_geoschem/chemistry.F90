@@ -435,6 +435,7 @@ contains
     use seasalt_mod,   only : init_seasalt
     use sulfate_mod,   only : init_sulfate
     use aerosol_mod,   only : init_aerosol
+    use linoz_mod,     only : init_linoz
     use WetScav_Mod,   Only : init_wetscav
     use chemgrid_mod,  only : init_chemgrid
     use TOMS_mod,      only : init_TOMS
@@ -825,6 +826,11 @@ contains
     If (Input_Opt%LSulf.or.Input_Opt%LCarb.or.Input_Opt%LDust.or.Input_Opt%LSSalt) Then
        Call Init_Aerosol( masterproc, Input_Opt, RC )
        If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize aerosol_mod')
+    End If
+
+    If (Input_Opt%LLinoz) Then
+       Call Init_Linoz(masterproc, Input_Opt, RC)
+       If (rc.ne.GC_SUCCESS) Call endrun('Failed to initialize linoz_mod')
     End If
 
     Call Init_ChemGrid( masterproc, Input_Opt, RC )
