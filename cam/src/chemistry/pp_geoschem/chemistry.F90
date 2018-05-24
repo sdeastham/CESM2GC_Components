@@ -83,6 +83,9 @@ module chemistry
   ! Indices of critical species
   integer :: iH2O
 
+  ! Indices in the physics buffer
+  integer :: ndx_pblh
+
 !================================================================================================
 contains
 !================================================================================================
@@ -392,7 +395,7 @@ contains
     !          (and declare history variables)
     ! 
     !-----------------------------------------------------------------------
-    use physics_buffer, only: physics_buffer_desc
+    use physics_buffer, only: physics_buffer_desc, pbuf_get_index
     use cam_history,    only: addfld, add_default, horiz_only
 
     use mpishorthand
@@ -444,6 +447,8 @@ contains
     use chemistry_mod, only : init_chemistry
     !use MODIS_LAI_Mod, Only : init_MODIS_LAI
     use ucx_mod,       only : init_ucx
+
+    use pbl_mix_mod,   only : init_pbl_mix
 
     use state_chm_mod,    only: Ind_
 
@@ -853,6 +858,9 @@ contains
 
     ! === END GC_INIT_EXTRA ===
 
+    ! Need this because some routines want to know where the PBL top is
+    call init_pbl_mix
+
     ! Set area...
     do i=begchunk,endchunk
        allocate(col_area(ncol(i)),stat=ierr)
@@ -915,6 +923,9 @@ contains
 
     ! Get the index of H2O
     iH2O = Ind_('H2O')
+
+    ! Get indices for physical fields in physics buffer
+    ndx_pblh    = pbuf_get_index('pblh')
 
     call addfld ( 'BCPI', (/'lev'/), 'A', 'mole/mole', trim('BCPI')//' mixing ratio' )
     call add_default ( 'BCPI',   1, ' ')
@@ -979,7 +990,7 @@ contains
 
   subroutine chem_timestep_tend( state, ptend, cam_in, cam_out, dt, pbuf,  fh2o )
 
-    use physics_buffer,   only: physics_buffer_desc
+    use physics_buffer,   only: physics_buffer_desc, pbuf_get_field
     use cam_history,      only: outfld
     use camsrfexch,       only: cam_in_t, cam_out_t
 
@@ -1028,6 +1039,7 @@ contains
          csza,      &                                      ! cosine of solar zenith angles
          zsurf, &                                          ! surface height (m)
          rlats, rlons                                      ! chunk latitudes and longitudes (radians)
+    real(r8), pointer :: pblh(:)                           ! PBL height on each chunk
     real(r8) :: relhum(state%ncol,pver)                          ! Relative humidity (0-1)
     real(r8) :: satv(  state%ncol,pver)                            ! Work arrays
     real(r8) :: satq(  state%ncol,pver)                            ! Work arrays 
@@ -1114,6 +1126,9 @@ contains
     call zenith( calday, rlats, rlons, csza, ncol )
     !call outfld( 'SZA',   sza,    ncol, lchnk )
 
+    ! Get PBL height (m)
+    call pbuf_get_field(pbuf, ndx_pblh, pblh)
+
     ! Get VMR and MMR of H2O
     h2ovmr = 0.0e0_fp
     qh2o   = 0.0e0_fp
@@ -1151,7 +1166,7 @@ contains
     State_Met(lchnk)%LAI              (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%PARDR            (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%PARDF            (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%PBLH             (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%PBLH             (1,:) = pblh(:ncol)
     State_Met(lchnk)%PHIS             (1,:) = state%phis(:)
     State_Met(lchnk)%PRECANV          (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%PRECCON          (1,:) = 0.0e+0_fp 
@@ -1245,6 +1260,9 @@ contains
   
     ! Calculate total OD as liquid cloud OD + ice cloud OD
     State_Met(lchnk)%OPTD =  State_Met(lchnk)%TAUCLI + State_Met(lchnk)%TAUCLW
+
+    ! Nullify all pointers
+    Nullify(pblh)
     ! << === INCLUDES_BEFORE_RUN === >> 
 
     ! Eventually initialize/reset wetdep
@@ -1393,13 +1411,13 @@ contains
     use sulfate_mod,     only : cleanup_sulfate
     use pressure_mod,    only : cleanup_pressure
     use flexchem_mod,    only : cleanup_flexchem
-    use strat_chem_mod,  only : init_strat_chem
     use strat_chem_mod,  only : cleanup_strat_chem
 
     use cmn_size_mod,    only : cleanup_cmn_size
     use cmn_o3_mod,      only : cleanup_cmn_o3
     use cmn_fjx_mod,     only : cleanup_cmn_fjx
     use ucx_mod,         only : cleanup_ucx
+    use pbl_mix_mod,     only : cleanup_pbl_mix
 
     ! Special: cleans up after NDXX_Setup
     use Diag_mod,      only : cleanup_diag
@@ -1426,6 +1444,7 @@ contains
     Call Cleanup_FlexChem
     Call Cleanup_Strat_Chem
     Call Cleanup_UCX( masterproc )
+    Call Cleanup_PBL_Mix
     ! Loop over each chunk and clean up the state variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
