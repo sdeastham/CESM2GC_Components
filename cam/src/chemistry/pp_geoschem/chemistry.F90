@@ -59,6 +59,7 @@ module chemistry
   character(len=255) :: tracernames(ntracersmax)
   integer            :: indices(ntracersmax)
   real(r8)           :: adv_mass(ntracersmax)
+  real(r8)           :: ref_mmr(ntracersmax)
 
   ! Short-lived species (i.e. not advected)
   integer, parameter :: nslsmax = 500        ! UNadvected species only
@@ -107,6 +108,7 @@ contains
   subroutine chem_register
 
     use physics_buffer, only : pbuf_add_field, dtype_r8
+    use physconst,      only : mwdry
 
     use state_chm_mod,  only : init_state_chm, cleanup_state_chm
     use state_chm_mod,  only : Ind_
@@ -126,6 +128,7 @@ contains
     integer            :: i, n
     real(r8)           :: cptmp
     real(r8)           :: qmin
+    real(r8)           :: ref_vmr
     character(len=128) :: mixtype
     character(len=128) :: molectype
     character(len=128) :: lng_name
@@ -180,31 +183,21 @@ contains
     map2gc = -1
     do i = 1, ntracersmax
        if (i.le.ntracers) then
-       n = Ind_(tracernames(i))
-       ThisSpc => SC%SpcData(N)%Info
-       lng_name    = Trim(ThisSpc%FullName)
-       adv_mass(i) = real(ThisSpc%MW_g,r8)
-       !select case (tracernames(i))
-       !   case ('BCPI')
-       !      lng_name = 'Hydrophilic black carbon'
-       !      ! Molar mass (g/mol)
-       !      adv_mass(i) = 1000.0e+0_r8 * (0.012e+0_r8)
-       !   case ('OCS')
-       !      lng_name = 'Carbonyl sulfide'
-       !      ! Molar mass (g/mol)
-       !      adv_mass(i) = 1000.0e+0_r8 * (0.060e+0_r8)
-       !   case default
-       !      lng_name = tracernames(i)
-       !      adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
-       !end select
+          n = Ind_(tracernames(i))
+          ThisSpc => SC%SpcData(N)%Info
+          lng_name    = Trim(ThisSpc%FullName)
+          adv_mass(i) = real(ThisSpc%MW_g,r8)
+          ref_vmr     = real(ThisSpc%BackgroundVV,r8)
+          ref_mmr(i)  = ref_vmr / (mwdry / adv_mass(i))
        else
           lng_name = trim(tracernames(i))
           adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
+          ref_mmr(i)  = 1.0e-38_r8
        endif
        ! dummy value for specific heat of constant pressure (Cp)
        cptmp = 666._r8
        ! minimum mixing ratio
-       qmin = 1.e-36_r8
+       qmin = 1.e-38_r8
        ! mixing ratio type
        mixtype = 'dry'
        ! Used for ionospheric WACCM (WACCM-X)
@@ -228,7 +221,7 @@ contains
        ! Add to GC mapping. When starting a timestep, we will want to update the
        ! concentration of State_Chm(x)%Species(1,iCol,iLev,i) with data from
        ! constituent n
-       map2gc(n) = i
+       if (i.le.ntracers) map2gc(n) = i
        ! Nullify pointer
        ThisSpc => NULL()
     end do
@@ -1073,6 +1066,9 @@ contains
     ! Need to update the timesteps throughout the code
     call gc_update_timesteps(dt)
 
+    ! Doesn't actually matter, but for safety's sake...
+    ptop = state%pint(1,1)*0.01e+0_fp
+
     ! Need to be super careful that the module arrays are updated and correctly
     ! set. NOTE: First thing - you'll need to flip all the data vertically
 
@@ -1372,12 +1368,14 @@ contains
     ! Will need a simple mapping structure as well as the CAM tracer registration
     ! routines.
 
-    integer :: ilev, nlev
+    integer  :: ilev, nlev
+    real(r8) :: qtemp
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_INIT_CNST'
 
     nlev = size(q, 2)
     if ( any( tracernames .eq. name ) ) then
+       ! Retrieve a "background value" for this from the database
        do ilev=1,nlev
           where(mask)
              ! Set to the minimum mixing ratio
