@@ -993,6 +993,7 @@ contains
     use dao_mod,          only: airqnt
     use pressure_mod,     only: set_floating_pressures
     use gc_grid_mod,      only: SetGridFromCtr
+    use gc_grid_mod,      only: Area_M2
     use pressure_mod,     only: accept_external_pedge
     use time_mod,         only: accept_external_date_time
     use strat_chem_mod,   only: init_strat_chem
@@ -1095,6 +1096,7 @@ contains
    
     ! Update the grid 
     Call SetGridFromCtr( rootChunk, nX, nY, lonMidArr, latMidArr, RC )
+    Area_M2 = State_Met(lchnk)%Area_M2
 
     ! 2. Copy tracers into State_Chm - again, remember to flip them
     ! Data was received in kg/kg dry
