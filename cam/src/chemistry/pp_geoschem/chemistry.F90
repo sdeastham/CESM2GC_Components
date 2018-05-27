@@ -993,13 +993,15 @@ contains
     use dao_mod,          only: airqnt
     use pressure_mod,     only: set_floating_pressures
     use gc_grid_mod,      only: SetGridFromCtr
-    use gc_grid_mod,      only: Area_M2
     use pressure_mod,     only: accept_external_pedge
     use time_mod,         only: accept_external_date_time
     use strat_chem_mod,   only: init_strat_chem
     use toms_mod,         only: compute_overhead_o3
     use chemistry_mod,    only: do_chemistry
     use wetscav_mod,      only: setup_wetscav
+
+    use gc_grid_mod,      only: Area_M2
+    use pressure_mod,     only: ptop
 
     ! For calculating SZA
     use orbit,            only: zenith
