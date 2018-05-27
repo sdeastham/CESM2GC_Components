@@ -1001,7 +1001,7 @@ contains
     use wetscav_mod,      only: setup_wetscav
 
     use gc_grid_mod,      only: Area_M2
-    use pressure_mod,     only: ptop
+    use cmn_size_mod,     only: ptop
 
     ! For calculating SZA
     use orbit,            only: zenith
