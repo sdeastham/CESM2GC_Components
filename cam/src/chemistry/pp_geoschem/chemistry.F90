@@ -477,7 +477,7 @@ contains
     ! Grid setup
     !real(fp), allocatable :: DLonVec(:), DLatVec(:)
     real(fp)              :: lonVal, latVal, dLonFix, dLatFix
-    real(fp), allocatable :: lonMidArr(:,:), latMidArr(:,:)
+    real(f4), allocatable :: lonMidArr(:,:), latMidArr(:,:)
     real(r8), allocatable :: linozData(:,:,:,:)
 
     real(r8), allocatable :: col_area(:)
@@ -751,6 +751,8 @@ contains
     If (ierr.ne.0) Call endrun('Failure while allocating lonMidArr')
     Allocate(latMidArr(nX,nY), Stat=ierr)
     If (ierr.ne.0) Call endrun('Failure while allocating latMidArr')
+    lonMidArr = 0.0e+0_f4
+    latMidArr = 0.0e+0_f4
 
     ! We could try and get the data from CAM.. but the goal is to make this GC
     ! component completely grid independent. So for now, we set to arbitrary
@@ -764,8 +766,8 @@ contains
        do j=1,nY
           ! Center of box, assuming regular cells
           latVal = (-90.0e+0_fp + (0.5e+0_fp * dLatFix) + (real(j-1,fp)*dLatFix)) * pi_180
-          lonMidArr(i,j) = lonVal
-          latMidArr(i,j) = latVal
+          lonMidArr(i,j) = real(lonVal,f4)
+          latMidArr(i,j) = real(latVal,f4)
        end do
     end do
     Call SetGridFromCtr( masterproc, nX, nY, lonMidArr, latMidArr, RC )
@@ -1059,7 +1061,7 @@ contains
     real(r8) :: qh2o(  state%ncol,pver)                            ! Specific humidity (kg/kg)
     real(r8) :: h2ovmr(state%ncol,pver)                          ! H2O VMR 
 
-    real(fp)     :: lonMidArr(1,pcols), latMidArr(1,pcols)
+    real(f4)     :: lonMidArr(1,pcols), latMidArr(1,pcols)
     integer      :: imaxloc(1)
  
     ! Calculating SZA
@@ -1067,6 +1069,10 @@ contains
 
     ! Because of strat chem
     logical, save :: schem_ready=.false.
+
+    real(r8)     :: dqmin, dqmax, dqcur
+    real(r8)     :: bqtst, eqtst, qcur
+    logical      :: dqinf, dqnan
 
     logical      :: rootChunk
     integer      :: RC
@@ -1104,12 +1110,12 @@ contains
     rlats(1:ncol) = state%lat(1:ncol)
     rlons(1:ncol) = state%lon(1:ncol)
 
-    lonMidArr = 0.0e+0_fp
-    latMidArr = 0.0e+0_fp
+    lonMidArr = 0.0e+0_f4
+    latMidArr = 0.0e+0_f4
     do i=1,nX
     do j=1,nY
-       lonMidArr(i,j) = rlons(j)
-       latMidArr(i,j) = rlats(j)
+       lonMidArr(i,j) = real(rlons(j),f4)
+       latMidArr(i,j) = real(rlats(j),f4)
     end do
     end do
    
