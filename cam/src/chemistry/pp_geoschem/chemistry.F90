@@ -65,6 +65,7 @@ module chemistry
   integer, parameter :: nslsmax = 500        ! UNadvected species only
   integer            :: nsls    
   character(len=255) :: slsnames(nslsmax)
+  real(r8)           :: sls_ref_mmr(nslsmax)
   !===== SDE DEBUG =====
 
   ! Location of valid input.geos
@@ -75,6 +76,7 @@ module chemistry
 
   ! Mapping between constituents and GEOS-Chem tracers
   integer :: map2gc(pcnst)
+  integer :: map2gc_sls(nslsmax)
 
   ! GEOS-Chem state variables
   Type(OptInput)                 :: Input_Opt
@@ -127,6 +129,7 @@ contains
 
     integer            :: i, n
     real(r8)           :: cptmp
+    real(r8)           :: mwtmp
     real(r8)           :: qmin
     real(r8)           :: ref_vmr
     character(len=128) :: mixtype
@@ -186,9 +189,11 @@ contains
           n = Ind_(tracernames(i))
           ThisSpc => SC%SpcData(N)%Info
           lng_name    = Trim(ThisSpc%FullName)
-          adv_mass(i) = real(ThisSpc%MW_g,r8)
+          mwtmp       = real(ThisSpc%MW_g,r8)
           ref_vmr     = real(ThisSpc%BackgroundVV,r8)
-          ref_mmr(i)  = ref_vmr / (mwdry / adv_mass(i))
+
+          adv_mass(i) = mwtmp
+          ref_mmr(i)  = ref_vmr / (mwdry / mwtmp)
        else
           lng_name = trim(tracernames(i))
           adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
@@ -226,6 +231,18 @@ contains
        ThisSpc => NULL()
     end do
 
+    map2gc_sls = 0
+    do i=1,nsls
+       n = Ind_(slsnames(i))
+       if (n.gt.0) then
+          ThisSpc => SC%SpcData(N)%Info
+          mwtmp          = real(ThisSpc%MW_g,r8)
+          ref_vmr        = real(ThisSpc%BackgroundVV,r8)
+          sls_ref_mmr(i) = ref_vmr / (mwdry / mwtmp)
+          map2gc_sls(i)  = n
+          ThisSpc => NULL()
+       end if
+    end do
     ! Now unadvected species
     ! MOZART uses this for short-lived species. Not certain exactly what it
     ! does, but note that the "ShortLivedSpecies" physics buffer already
@@ -1103,6 +1120,8 @@ contains
     ! 2. Copy tracers into State_Chm - again, remember to flip them
     ! Data was received in kg/kg dry
     State_Chm(lchnk)%Spc_Units = 'kg/kg dry'
+    ! Initialize ALL State_Chm species data to zero, not just tracers
+    State_Chm(lchnk)%Species = 0.0e+0_fp
     lq(:) = .false.
     mmr_beg = 0.0e+0_r8
     do n=1, pcnst
@@ -1117,6 +1136,13 @@ contains
           end do
           end do
           lq(n) = .true.
+       end if
+    end do
+    ! TEMPORARY: initalize all unadvected species to background values
+    do n=1,nsls
+       m = map2gc_sls(n)
+       if (m > 0) then
+          State_Chm(lchnk)%Species(:,:,:,m) = real(sls_ref_mmr(n),fp)
        end if
     end do
     call physics_ptend_init(ptend, state%psetcols, 'chemistry', lq=lq)
