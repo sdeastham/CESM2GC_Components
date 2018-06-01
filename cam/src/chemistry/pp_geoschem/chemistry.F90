@@ -902,7 +902,7 @@ contains
     Ap_CAM_Flip = 0.0e+0_fp
     Bp_CAM_Flip = 0.0e+0_fp
     Do i=1,(nZ+1)
-       Ap_CAM_Flip(i) = hyai(nZ+2-i) * ps0 * 100.0e+0_r8
+       Ap_CAM_Flip(i) = hyai(nZ+2-i) * ps0 * 0.01e+0_r8
        Bp_CAM_Flip(i) = hybi(nZ+2-i)
     End Do
     Call Init_Pressure( masterproc, Ap_CAM_Flip, Bp_CAM_Flip ) 
