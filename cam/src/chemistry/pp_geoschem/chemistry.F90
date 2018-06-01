@@ -1030,6 +1030,13 @@ contains
     use wv_saturation,    only: qsat
     use physconst,        only: mwdry
 
+    ! For getting grid area
+    use physconst,    only : rearth
+    use phys_grid,    only : get_area_all_p
+
+    ! Use GEOS-Chem versions of physical constants
+    use physconstants,  only : pi, pi_180
+
     real(r8),            intent(in)    :: dt          ! time step
     type(physics_state), intent(in)    :: state       ! Physics state variables
     type(physics_ptend), intent(out)   :: ptend       ! indivdual parameterization tendencies
@@ -1063,6 +1070,8 @@ contains
 
     real(f4)     :: lonMidArr(1,pcols), latMidArr(1,pcols)
     integer      :: imaxloc(1)
+
+    real(r8)     :: col_area(state%ncol)
  
     ! Calculating SZA
     real(r8)     :: calday
@@ -1122,6 +1131,14 @@ contains
    
     ! Update the grid 
     Call SetGridFromCtr( rootChunk, nX, nY, lonMidArr, latMidArr, RC )
+
+    ! Set area...
+    call get_area_all_p(lchnk, ncol, col_area)
+    ! Set default value (in case of chunks with fewer columns)
+    State_Met(lchnk)%Area_M2 = 1.0e+10_fp
+    Do j=1,ncol
+       State_Met(lchnk)%Area_M2(1,j,:) = real(col_area(j) * rearth**2,fp)
+    End Do
     Area_M2 = State_Met(lchnk)%Area_M2
 
     ! 2. Copy tracers into State_Chm - again, remember to flip them
