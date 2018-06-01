@@ -1442,10 +1442,6 @@ contains
     end do
     if (present(fh2o)) fh2o(:) = 0.0e+0_r8
 
-    ! DEBUG
-    if (rootChunk) write(iulog,'(a)') ' ==> ZEROING TENDENCIES <=='
-    ptend%q(:,:,:) = 0.0e+0_r8
-
     return
   end subroutine chem_timestep_tend
 
