@@ -1459,21 +1459,26 @@ contains
     ! Will need a simple mapping structure as well as the CAM tracer registration
     ! routines.
 
-    integer  :: ilev, nlev
-    real(r8) :: qtemp
+    integer  :: ilev, nlev, i
+    real(r8) :: qtemp, min_mmr
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_INIT_CNST'
 
     nlev = size(q, 2)
-    if ( any( tracernames .eq. name ) ) then
-       ! Retrieve a "background value" for this from the database
-       do ilev=1,nlev
-          where(mask)
-             ! Set to the minimum mixing ratio
-             q(:,ilev) = 1.0e-38_r8
-          end where
-       end do
-    end if
+    ! Retrieve a "background value" for this from the database
+    min_mmr = 1.0e-38_r8
+    do i=1,ntracers
+       if (trim(tracernames(i)).eq.trim(name)) then
+          min_mmr = ref_mmr(i)
+          exit
+       end if
+    end do
+    do ilev=1,nlev
+       where(mask)
+          ! Set to the minimum mixing ratio
+          q(:,ilev) = min_mmr
+       end where
+    end do
 
   end subroutine chem_init_cnst
 
