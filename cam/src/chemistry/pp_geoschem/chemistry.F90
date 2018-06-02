@@ -184,6 +184,7 @@ contains
     ! At the moment, we force nadv_chem=200 in the setup file
     ! Default
     map2gc = -1
+    ref_mmr(:) = 0.0e+0_r8
     do i = 1, ntracersmax
        if (i.le.ntracers) then
           n = Ind_(tracernames(i))
@@ -232,6 +233,7 @@ contains
     end do
 
     map2gc_sls = 0
+    sls_ref_mmr(:) = 0.0e+0_r8
     do i=1,nsls
        n = Ind_(slsnames(i))
        if (n.gt.0) then
