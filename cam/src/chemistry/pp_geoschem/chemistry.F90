@@ -57,15 +57,19 @@ module chemistry
   integer, parameter :: ntracersmax = 200    ! Must be equal to nadv_chem
   integer            :: ntracers
   character(len=255) :: tracernames(ntracersmax)
+  character(len=255) :: tracerlongnames(ntracersmax)
   integer            :: indices(ntracersmax)
   real(r8)           :: adv_mass(ntracersmax)
+  real(r8)           :: mwratio(ntracersmax)
   real(r8)           :: ref_mmr(ntracersmax)
 
   ! Short-lived species (i.e. not advected)
   integer, parameter :: nslsmax = 500        ! UNadvected species only
   integer            :: nsls    
   character(len=255) :: slsnames(nslsmax)
+  character(len=255) :: slslongnames(nslsmax)
   real(r8)           :: sls_ref_mmr(nslsmax)
+  real(r8)           :: slsmwratio(nslsmax)
   !===== SDE DEBUG =====
 
   ! Location of valid input.geos
@@ -77,6 +81,9 @@ module chemistry
   ! Mapping between constituents and GEOS-Chem tracers
   integer :: map2gc(pcnst)
   integer :: map2gc_sls(nslsmax)
+
+  ! Mapping from constituents to raw index
+  integer :: map2idx(pcnst)
 
   ! GEOS-Chem state variables
   Type(OptInput)                 :: Input_Opt
@@ -127,7 +134,7 @@ contains
     Type(OptInput)         :: IO
     TYPE(Species), POINTER :: ThisSpc
 
-    integer            :: i, n
+    integer            :: i, n, m
     real(r8)           :: cptmp
     real(r8)           :: mwtmp
     real(r8)           :: qmin
@@ -185,21 +192,26 @@ contains
     ! Default
     map2gc = -1
     ref_mmr(:) = 0.0e+0_r8
+    mwratio(:) = 1.0e+0_r8
+    tracerlongnames = ''
     do i = 1, ntracersmax
        if (i.le.ntracers) then
-          n = Ind_(tracernames(i))
-          ThisSpc => SC%SpcData(N)%Info
-          lng_name    = Trim(ThisSpc%FullName)
-          mwtmp       = real(ThisSpc%MW_g,r8)
-          ref_vmr     = real(ThisSpc%BackgroundVV,r8)
+          n          =  Ind_(tracernames(i))
+          ThisSpc    => SC%SpcData(N)%Info
+          lng_name   =  Trim(ThisSpc%FullName)
+          mwtmp      =  real(ThisSpc%MW_g,r8)
+          ref_vmr    =  real(ThisSpc%BackgroundVV,r8)
 
           adv_mass(i) = mwtmp
           ref_mmr(i)  = ref_vmr / (mwdry / mwtmp)
        else
           lng_name = trim(tracernames(i))
-          adv_mass(i) = 1000.0e+0_r8 * (0.001e+0_r8)
+          mwtmp = 1000.0e+0_r8 * (0.001e+0_r8)
+          adv_mass(i) = mwtmp
           ref_mmr(i)  = 1.0e-38_r8
        endif
+       mwratio(i) = mwdry/mwtmp
+       tracerlongnames(i) = trim(lng_name)
        ! dummy value for specific heat of constant pressure (Cp)
        cptmp = 666._r8
        ! minimum mixing ratio
@@ -225,23 +237,32 @@ contains
                       fixed_ubflx=has_fixed_ubflx, longname=trim(lng_name) )
 
        ! Add to GC mapping. When starting a timestep, we will want to update the
-       ! concentration of State_Chm(x)%Species(1,iCol,iLev,i) with data from
+       ! concentration of State_Chm(x)%Species(1,iCol,iLev,m) with data from
        ! constituent n
-       if (i.le.ntracers) map2gc(n) = i
+       m = Ind_(trim(tracernames(i)))
+       if (m>0) then
+          map2gc(n)  = m
+          map2idx(n) = i
+       end if
        ! Nullify pointer
        ThisSpc => NULL()
     end do
 
     map2gc_sls = 0
     sls_ref_mmr(:) = 0.0e+0_r8
+    slsmwratio(:)  = -1.0e+0_r8
+    slslongnames = ''
     do i=1,nsls
        n = Ind_(slsnames(i))
        if (n.gt.0) then
           ThisSpc => SC%SpcData(N)%Info
-          mwtmp          = real(ThisSpc%MW_g,r8)
-          ref_vmr        = real(ThisSpc%BackgroundVV,r8)
-          sls_ref_mmr(i) = ref_vmr / (mwdry / mwtmp)
-          map2gc_sls(i)  = n
+          mwtmp           = real(ThisSpc%MW_g,r8)
+          ref_vmr         = real(ThisSpc%BackgroundVV,r8)
+          lng_name        = Trim(ThisSpc%FullName)
+          slslongnames(i) = lng_name
+          sls_ref_mmr(i)  = ref_vmr / (mwdry / mwtmp)
+          slsmwratio(i)   = mwdry / mwtmp
+          map2gc_sls(i)   = n
           ThisSpc => NULL()
        end if
     end do
@@ -486,6 +507,8 @@ contains
     real(fp), allocatable :: Ap_CAM_Flip(:), Bp_CAM_Flip(:)
 
     logical               :: rootCPU, rootChunk
+
+    character(len=255)    :: spcname
 
     ! lchnk: which chunks we have on this process
     lchnk = phys_state%lchnk
@@ -923,13 +946,6 @@ contains
        Call Init_UCX(masterproc, Input_Opt, State_Chm(begchunk)) 
     End If
 
-    ! Init_Pressure...
-    ! Init_PBL_Mix...
-    ! Init_Chemistry...
-    ! Init_TOMS...
-    ! Emissions_Init...
-    ! Init_UCX...
-    ! Convert_Spc_Units...
     ! Can add history output here too with the "addfld" & "add_default" routines
     ! Note that constituents are already output by default
 
@@ -942,8 +958,21 @@ contains
     ! Get indices for physical fields in physics buffer
     ndx_pblh    = pbuf_get_index('pblh')
 
-    call addfld ( 'BCPI', (/'lev'/), 'A', 'mole/mole', trim('BCPI')//' mixing ratio' )
-    call add_default ( 'BCPI',   1, ' ')
+    ! Add all species as output fields if desired
+    do i=1,ntracers
+       spcname = trim(tracernames(i))
+       call addfld( trim(spcname), (/ 'lev' /), 'A', 'mol/mol', trim(tracerlongnames(i))//' concentration')
+       if (trim(spcname) == 'O3') then
+          call add_default ( trim(spcname),   1, ' ')
+       end if
+    end do
+    do i=1,nsls
+       spcname = trim(slsnames(i))
+       call addfld( trim(spcname), (/ 'lev' /), 'A', 'mol/mol', trim(slslongnames(i))//' concentration')
+       !call add_default ( trim(spcname),   1, ' ')
+    end do
+    !call addfld ( 'BCPI', (/'lev'/), 'A', 'mole/mole', trim('BCPI')//' mixing ratio' )
+    !call add_default ( 'BCPI',   1, ' ')
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_INIT'
 
   end subroutine chem_init
@@ -1081,6 +1110,11 @@ contains
 
     ! Because of strat chem
     logical, save :: schem_ready=.false.
+
+    ! For archiving
+    character(len=255) :: spcname
+    real(r8)     :: vmr(state%ncol,pver)
+    real(r8)     :: mmr0, mmr1, mass0, mass1, airmass, mass10r, mass10a
 
     logical      :: rootChunk
     integer      :: RC
@@ -1379,6 +1413,42 @@ contains
     ! Make sure State_Chm(lchnk) is back in kg/kg dry!
     ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
     State_Chm(lchnk)%Species(1,:,:,iH2O) = mmr_beg(:,:,iH2O)
+
+    ! Write diagnostic output
+    do n=1,pcnst
+       m = map2gc(n)
+       i = map2idx(n)
+       if (m>0) then
+          spcname = tracernames(i)
+          vmr     = 0.0e+0_r8
+          mass0   = 0.0e+0_r8
+          mass1   = 0.0e+0_r8
+          do j=1,ncol
+          do k=1,pver
+             airmass = real(State_Met(lchnk)%AD(1,j,k),r8)
+             mmr0 = mmr_beg(j,k,m)
+             mmr1 = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
+             vmr(j,pver+1-k) = mmr1 * mwratio(i)
+             mass0 = mass0 + (mmr0*airmass)
+             mass1 = mass1 + (mmr1*airmass)
+          end do
+          end do
+          call outfld( trim(spcname), vmr(:ncol,:), ncol, lchnk )
+       end if
+    end do
+    do n=1,nsls
+       spcname = slsnames(n)
+       vmr = 0.0e+0_r8
+       m = map2gc_sls(n)
+       if (m>0) then
+          do j=1,ncol
+          do k=1,pver
+             vmr(j,pver+1-k) = real(State_Chm(lchnk)%Species(1,j,k,m),r8) * slsmwratio(n)
+          end do
+          end do
+          call outfld( trim(spcname), vmr(:ncol,:), ncol, lchnk )
+       end if
+    end do
 
     ! NOTE: Re-flip all the arrays vertically or suffer the consequences
     ! ptend%q dimensions: [column, ?, species]
