@@ -1033,7 +1033,7 @@ contains
     use physconst,        only: mwdry
 
     ! For getting grid area
-    use physconst,    only : rearth
+    use physconst,    only : rearth, gravit
     use phys_grid,    only : get_area_all_p
 
     ! Use GEOS-Chem versions of physical constants
@@ -1442,7 +1442,12 @@ contains
           end if
        end if
     end do
-    if (present(fh2o)) fh2o(:) = 0.0e+0_r8
+    if (present(fh2o)) then
+       fh2o(:ncol) = 0.0e+0_r8
+       !do k = 1,pver
+       !   fh2o(:ncol) = fh2o(:ncol) + ptend%q(:ncol,k,iH2O)*state%pdel(:ncol,k)/gravit
+       !end do
+    end if
 
     return
   end subroutine chem_timestep_tend
