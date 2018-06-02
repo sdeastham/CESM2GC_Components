@@ -1217,7 +1217,7 @@ contains
     ! Note MWDRY = 28.966 g/mol
     do j=1,nY
     do l=1,nZ
-       qh2o(j,l) = State_Chm(lchnk)%Species(1,j,k,iH2O)
+       qh2o(j,l) = real(State_Chm(lchnk)%Species(1,j,k,iH2O),r8)
        h2ovmr(j,l) = qh2o(j,l) * mwdry / 18.016e+0_fp 
     end do
     end do
