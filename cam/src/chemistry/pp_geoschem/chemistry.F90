@@ -592,7 +592,6 @@ contains
     Input_Opt%LSplit = .False.
 
     ! when iam = -1, ntracers isn't received...
-    write(iulog,'(a,3(x,I6))') ' NTRAC: ', Input_Opt%myCPU, Input_Opt%N_Advect, NTracers
     !if (ntracers<1) call endrun('Tracer count missing?')
 
     ! Now READ_AEROSOL_MENU
@@ -761,7 +760,6 @@ contains
     ! values
     dLonFix = 360.0e+0_fp / real(nX,fp)
     dLatFix = 180.0e+0_fp / real(nY,fp)
-    if (masterproc) write(iulog,'(a,2(x,I4))') ' nX nY ', nX, nY
     do i=1,nX
        ! Center of box, assuming dateline edge
        lonVal = (-180.0e+0_fp + (0.5e+0_fp * dLonFix) + (real(i-1,fp)*dLonFix)) * pi_180
@@ -1084,11 +1082,6 @@ contains
     ! Because of strat chem
     logical, save :: schem_ready=.false.
 
-    real(r8)     :: dqmin, dqmax, dqcur
-    real(r8)     :: bqtst, eqtst, qcur
-    integer      :: jtst, ltst
-    logical      :: dqinf, dqnan
-
     logical      :: rootChunk
     integer      :: RC
 
@@ -1358,20 +1351,11 @@ contains
     Call Set_Floating_Pressures( rootChunk, State_Met(lchnk), RC )
     If (rc.ne.GC_SUCCESS) Call endrun('Failed to set floating pressures')
 
-    if (masterproc) write(iulog,'(a,4(x,I4),6(x,E16.5E4))') 'AQIN  ',lchnk,1,1,000,&
-       State_Met(lchnk)%SPHU(1,1,1),State_Met(lchnk)%RH(1,1,1),State_Met(lchnk)%T(1,1,1),&
-       State_Met(lchnk)%PEDGE(1,1,1), State_Met(lchnk)%PEDGE(1,1,2),State_Met(lchnk)%AREA_M2(1,1,1)
     ! Set quantities of interest but do not change VMRs
     Call AirQnt( rootChunk, Input_Opt, State_Met(lchnk), &
                  State_Chm(lchnk), RC, update_mixing_ratio=.False. )
     If (rc.ne.GC_SUCCESS) Call endrun('Failed to calculate air properties')
 
-    Do l=1,pver
-    if (masterproc) write(iulog,'(a,4(x,I4),5(x,E16.5E4))') 'AQOUT ',lchnk,1,l,001,&
-       State_Met(lchnk)%AD(1,1,l),State_Met(lchnk)%AVGW(1,1,l),&
-       State_Met(lchnk)%BXHEIGHT(1,1,l),State_Met(lchnk)%AIRVOL(1,1,l),&
-       State_Met(lchnk)%AREA_M2(1,1,l)
-    end do
     ! Initialize strat chem if not already done. This has to be done here because
     ! it needs to have non-zero values in State_Chm%AD, which only happens after
     ! the first call to AirQnt
@@ -1392,12 +1376,7 @@ contains
                           RC             = RC                )
     End If
 
-    !if (masterproc) write(iulog,*) ' --> TEND SIZE: ', size(state%ncol)
-    !if (masterproc) write(iulog,'(a,2(x,I6))') ' --> TEND SIDE:  ', lbound(state%ncol),ubound(state%ncol)
-    if (rootChunk) write(iulog,'(a)') 'GCCALL CHEM_TIMESTEP_TEND'
-
     ! Make sure State_Chm(lchnk) is back in kg/kg dry!
-
     ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
     State_Chm(lchnk)%Species(1,:,:,iH2O) = mmr_beg(:,:,iH2O)
 
@@ -1409,40 +1388,14 @@ contains
        m = map2gc(n)
        if (m > 0) then
           i=1
-          ! ===== DEBUG =====
-          dqmin=0.0e+0_r8
-          dqmin=0.0e+0_r8
-          eqtst=0.0e+0_r8
-          bqtst=0.0e+0_r8
-          jtst =0
-          ltst =0
-          dqnan=.False.
-          dqinf=.False.
-          ! ===== DEBUG =====
           do j=1,ncol
           do k=1,pver
              ! CURRENTLY KG/KG
              mmr_end( j,k,m) = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
              mmr_tend(j,k,m) = mmr_end(j,k,m) - mmr_beg(j,k,m)
              ptend%q(j,pver+1-k,n) = (mmr_end(j,k,m)-mmr_beg(j,k,m))/dt
-             dqcur = (mmr_end(j,k,m)-mmr_beg(j,k,m))/dt
-             if (dqcur>dqmax) dqmax=dqcur
-             if (dqcur<dqmin) then
-                dqmin=dqcur
-                eqtst=mmr_end(j,k,m)
-                bqtst=mmr_beg(j,k,m)
-                jtst =j
-                ltst =k
-             end if
-             if (dqcur.ne.dqcur) dqnan=.True.
-             if (abs(dqcur).ge.huge(dqcur)) dqinf=.True.
           end do
           end do
-          if (rootchunk) then
-             write(iulog,'(a,a12,a,4(x,I3),4(x,E16.5E4))') &
-                'Root stats ',Trim(tracernames(m)),&
-                ':',m,n,jtst,ltst,dqmin,dqmax,bqtst,eqtst
-          end if
        end if
     end do
     if (present(fh2o)) then
@@ -1452,6 +1405,7 @@ contains
        !end do
     end if
 
+    if (rootchunk) write(iulog,'(a)') ' GEOS-Chem chemistry step completed'
     return
   end subroutine chem_timestep_tend
 
