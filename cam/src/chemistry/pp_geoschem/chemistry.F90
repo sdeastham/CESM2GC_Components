@@ -84,7 +84,7 @@ module chemistry
   Type(ChmState),Allocatable     :: State_Chm(:)
 
   ! Indices of critical species
-  integer :: iH2O
+  integer :: iH2O, iO3, iCH4, iCO
 
   ! Indices in the physics buffer
   integer :: ndx_pblh
@@ -937,6 +937,9 @@ contains
 
     ! Get the index of H2O
     iH2O = Ind_('H2O')
+    iCH4 = Ind_('CH4')
+    iCO  = Ind_('CO' )
+    iO3  = Ind_('O3' )
 
     ! Get indices for physical fields in physics buffer
     ndx_pblh    = pbuf_get_index('pblh')
