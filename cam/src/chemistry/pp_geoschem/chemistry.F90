@@ -21,6 +21,8 @@ module chemistry
   use state_met_mod,       only : metstate
   use state_chm_mod,       only : chmstate
 
+  use chem_mods,           only : nslvd, slvd_lst, slvd_ref_mmr
+
   ! GEOS-Chem precision specifiers
   use precision_mod,       only : fp, f4
  
@@ -119,6 +121,8 @@ contains
     use physics_buffer, only : pbuf_add_field, dtype_r8
     use physconst,      only : mwdry
 
+    use short_lived_species, only : register_short_lived_species
+
     use state_chm_mod,  only : init_state_chm, cleanup_state_chm
     use state_chm_mod,  only : Ind_
     use input_opt_mod,  only : set_input_opt,  cleanup_input_opt
@@ -148,6 +152,7 @@ contains
     logical            :: has_fixed_ubflx
 
     integer            :: rc
+
     ! SDE 2018-05-02: This seems to get called before anything else
     ! That includes CHEM_INIT
     ! At this point, mozart calls SET_SIM_DAT, which is specified by each
@@ -248,6 +253,7 @@ contains
        ThisSpc => NULL()
     end do
 
+    ! Now unadvected species
     map2gc_sls = 0
     sls_ref_mmr(:) = 0.0e+0_r8
     slsmwratio(:)  = -1.0e+0_r8
@@ -266,21 +272,12 @@ contains
           ThisSpc => NULL()
        end if
     end do
-    ! Now unadvected species
-    ! MOZART uses this for short-lived species. Not certain exactly what it
-    ! does, but note that the "ShortLivedSpecies" physics buffer already
-    ! needs to have been initialized, which we haven't done. Physics buffers
-    ! are fields which are available either across timesteps or for use to
-    ! modules outside of chemistry
+
+    ! Pass information to "short_lived_species" module
+    slvd_ref_mmr(1:nsls) = sls_ref_mmr(1:nsls)
+    call register_short_lived_species()
     ! More information:
     ! http://www.cesm.ucar.edu/models/atm-cam/docs/phys-interface/node5.html
-    !call pbuf_add_field('ShortLivedSpecies','global',dtype_r8,(/pcols,pver,nslvd/),pbf_idx)
-    ! returned values
-    !  n : mapping in CAM
-    ! map2chm is a mozart variable
-    !map2chm(n) = i
-    !indices(i) = 0
-    ! ===== SDE DEBUG =====
 
     ! Clean up
     Call Cleanup_State_Chm( .False., SC, RC )
@@ -377,6 +374,16 @@ contains
     call mpibcast(nsls,        1,                               mpiint,  0, mpicom )
     call mpibcast(slsnames,    len(slsnames(1))*nslsmax,        mpichar, 0, mpicom )
 #endif
+
+    ! Update "short_lived_species" arrays - will eventually unify these
+    nslvd=nsls
+    allocate(slvd_lst(nslvd),stat=ierr)
+    if (ierr.ne.0) call endrun('Failed to allocate slvd_lst')
+    allocate(slvd_ref_mmr(nslvd),stat=ierr)
+    if (ierr.ne.0) call endrun('Failed to allocate slvd_ref_mmr')
+    do i=1,nsls
+       slvd_lst(i) = trim(slsnames(i))
+    end do
 
   end subroutine chem_readnl
 
@@ -510,6 +517,8 @@ contains
 
     character(len=255)    :: spcname
 
+    real(r8), pointer     :: slsptr(:,:,:)
+
     ! lchnk: which chunks we have on this process
     lchnk = phys_state%lchnk
     ! ncol: number of atmospheric columns for each chunk
@@ -525,9 +534,23 @@ contains
     nY = MaxVal(ncol)
     nZ = nlev
 
+    !! Add short lived speies to buffers
+    !call pbuf_add_field(Trim(SLSBuffer),'global',dtype_r8,(/pcols,pver,nsls/),sls_pbf_idx)
+    !! Initialize
+    !allocate(slsptr(pcols,pver,begchunk:endchunk),Stat=ierr)
+    !If (ierr.ne.0) Call endrun('Failure while allocating SLS pointer')
+    !slsptr(:,:,:) = 0.0e+0_r8
+    !do i=1,nsls
+    !   slsptr(:,:,:) = sls_ref_mmr(i)
+    !   call pbuf_set_field(pbuf2d,sls_pbf_idx,slsptr,start=(/1,1,i/),kount=(/pcols,pver,1/))
+    !end do
+    !deallocate(slsptr) 
+
     ! This ensures that each process allocates everything needed for its chunks
-    Allocate(State_Met(begchunk:endchunk))
-    Allocate(State_Chm(begchunk:endchunk))
+    Allocate(State_Met(begchunk:endchunk),Stat=ierr)
+    If (ierr.ne.0) Call endrun('Failure while allocating GC State_Met array')
+    Allocate(State_Chm(begchunk:endchunk),Stat=ierr)
+    If (ierr.ne.0) Call endrun('Failure while allocating GC State_Chm array')
    
     ! Set some basic flags
     Input_Opt%Max_Diag          = 1000
@@ -1066,6 +1089,9 @@ contains
     use physconst,    only : rearth, gravit
     use phys_grid,    only : get_area_all_p
 
+    use short_lived_species, only : get_short_lived_species
+    use short_lived_species, only : set_short_lived_species
+
     ! Use GEOS-Chem versions of physical constants
     use physconstants,  only : pi, pi_180
 
@@ -1115,6 +1141,9 @@ contains
     character(len=255) :: spcname
     real(r8)     :: vmr(state%ncol,pver)
     real(r8)     :: mmr0, mmr1, mass0, mass1, airmass, mass10r, mass10a
+    real(r8)     :: mmr_min, mmr_max
+
+    real(r8)     :: slsdata(state%ncol,pver,nsls)
 
     logical      :: rootChunk
     integer      :: RC
@@ -1194,13 +1223,24 @@ contains
           lq(n) = .true.
        end if
     end do
-    ! TEMPORARY: initalize all unadvected species to background values
+
+    ! Retrieve previous value of species data
+    slsdata(:,:,:) = 0.0e+0_r8
+    call get_short_lived_species( slsdata, lchnk, ncol, pbuf )
+
+    ! Remap and flip them
     do n=1,nsls
        m = map2gc_sls(n)
        if (m > 0) then
-          State_Chm(lchnk)%Species(:,:,:,m) = real(sls_ref_mmr(n),fp)
+          do j=1,ncol
+          do k=1,pver
+             State_Chm(lchnk)%Species(1,j,k,m) = real(slsdata(j,pver+1-k,n),fp)
+          end do
+          end do
        end if
     end do
+
+    ! Initialize tendency array
     call physics_ptend_init(ptend, state%psetcols, 'chemistry', lq=lq)
 
     ! Calculate cos(SZA)
@@ -1414,6 +1454,23 @@ contains
     ! Reset H2O MMR to the initial value (no chemistry tendency in H2O just yet)
     State_Chm(lchnk)%Species(1,:,:,iH2O) = mmr_beg(:,:,iH2O)
 
+    ! Store unadvected species data
+    slsdata = 0.0e+0_r8
+    do n=1,nsls
+       m = map2gc_sls(n)
+       if (m > 0) then
+          mass1   = 0.0e+0_r8
+          mmr_min = 1.0e+9_r8
+          mmr_max = 0.0e+0_r8
+          do j=1,ncol
+          do k=1,pver
+             slsdata(j,pver+1-k,n) = real(State_Chm(lchnk)%Species(1,j,k,m),r8)
+          end do
+          end do
+       end if
+    end do
+    call set_short_lived_species( slsdata, lchnk, ncol, pbuf )
+
     ! Write diagnostic output
     do n=1,pcnst
        m = map2gc(n)
@@ -1587,7 +1644,9 @@ contains
     ! Finally deallocate the variables in full
     If (allocated(State_Met))     Deallocate(State_Met)
     If (allocated(State_Chm))     Deallocate(State_Chm)
-    if (masterproc) write(iulog,'(a,2(x,L1))') ' --> DEALLOC CHECK : ', Allocated(state_met), Allocated(state_chm)
+
+    if (allocated(slvd_lst    ))  Deallocate(slvd_lst)
+    if (allocated(slvd_ref_mmr))  Deallocate(slvd_ref_mmr)
 
     return
   end subroutine chem_final

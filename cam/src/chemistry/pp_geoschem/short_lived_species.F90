@@ -7,7 +7,7 @@
 module short_lived_species
 
   use shr_kind_mod, only : r8 => shr_kind_r8
-  use chem_mods,    only : slvd_lst, nslvd, gas_pcnst
+  use chem_mods,    only : slvd_lst, nslvd, gas_pcnst, slvd_ref_mmr
   use cam_logfile,  only : iulog
   use ppgrid,       only : pcols, pver, begchunk, endchunk
   use spmd_utils,   only : masterproc
@@ -17,7 +17,7 @@ module short_lived_species
 
   save
   private
-  public :: map
+  !public :: map
   public :: register_short_lived_species
   public :: initialize_short_lived_species
   public :: set_short_lived_species
@@ -26,7 +26,7 @@ module short_lived_species
   public :: pbf_idx
 
   integer :: pbf_idx
-  integer :: map(nslvd)
+  !integer :: map(nslvd)
 
   character(len=16), parameter :: pbufname = 'ShortLivedSpecies'
 
@@ -63,13 +63,13 @@ contains
     type(file_desc_t), intent(inout) :: ncid_ini
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
-    integer          :: m,n,lchnk
-    integer          :: grid_id
-    character(len=8) :: fieldname
-    character(len=4) :: dim1name, dim2name
-    logical          :: found
-    real(r8),pointer :: tmpptr(:,:,:)   ! temporary pointer
-    real(r8),pointer :: tmpptr2(:,:,:)   ! temporary pointer
+    integer            :: m,n,lchnk
+    integer            :: grid_id
+    character(len=255) :: fieldname
+    character(len=4)   :: dim1name, dim2name
+    logical            :: found
+    real(r8),pointer   :: tmpptr(:,:,:)   ! temporary pointer
+    real(r8),pointer   :: tmpptr2(:,:,:)   ! temporary pointer
     character(len=*), parameter :: subname='INITIALIZE_SHORT_LIVED_SPECIES'
 
     if ( nslvd < 1 ) return
@@ -87,19 +87,25 @@ contains
     allocate(tmpptr(pcols,pver,begchunk:endchunk))
 
     do m=1,nslvd
-       n = map(m)
+       !n = map(m)
        !fieldname = solsym(n)
-       write(fieldname,'(a,I0.4)') 'GCSL', m
+       !write(fieldname,'(a,I0.4)') 'GCSL', m
+       !write(fieldname,'(a8)') trim(slvd_lst(m))
+       write(fieldname,'(a,a)') 'GCSL_',trim(slvd_lst(m))
        call infld( fieldname,ncid_ini,dim1name, 'lev', dim2name, 1, pcols, 1, pver, begchunk, endchunk, &
                    tmpptr, found, gridname='physgrid')
 
        if (.not.found) then
-          tmpptr(:,:,:) = 1.e-36_r8
+          !tmpptr(:,:,:) = 1.e-36_r8
+          tmpptr(:,:,:) = slvd_ref_mmr(m)
        endif
 
        call pbuf_set_field(pbuf2d, pbf_idx, tmpptr, start=(/1,1,m/),kount=(/pcols,pver,1/))
        
-       if (masterproc) write(iulog,*)  fieldname, ' is set to short-lived'
+       if (masterproc) write(iulog,'(a20,a)') Trim(fieldname), ' is set to short-lived'
+       ! DEBUG: remove as this will be confusing to most due to the negative
+       ! dummy MW which was used to calculate the reference MMR
+       if (masterproc) write(iulog,'(a, E16.5E4)') ' --> reference MMR: ', slvd_ref_mmr(m)
   
     enddo
 
@@ -115,7 +121,7 @@ contains
 
     implicit none 
 
-    real(r8), intent(in)               :: q(pcols,pver,gas_pcnst)
+    real(r8), intent(in)               :: q(pcols,pver,nslvd)
     integer,  intent(in)               :: lchnk, ncol
     type(physics_buffer_desc), pointer :: pbuf(:)
 
@@ -124,8 +130,8 @@ contains
     if ( nslvd < 1 ) return
 
     do m=1,nslvd
-       n = map(m)
-       call pbuf_set_field(pbuf, pbf_idx, q(:,:,n), start=(/1,1,m/),kount=(/pcols,pver,1/))
+       !n = map(m)
+       call pbuf_set_field(pbuf, pbf_idx, q(:,:,m), start=(/1,1,m/),kount=(/pcols,pver,1/))
     enddo
 
   end subroutine set_short_lived_species
@@ -137,7 +143,7 @@ contains
 
     implicit none 
 
-    real(r8), intent(inout)            :: q(pcols,pver,gas_pcnst)
+    real(r8), intent(inout)            :: q(pcols,pver,nslvd)
     integer,  intent(in)               :: lchnk, ncol
     type(physics_buffer_desc), pointer :: pbuf(:)
     real(r8),pointer                   :: tmpptr(:,:)
@@ -148,9 +154,9 @@ contains
     if ( nslvd < 1 ) return
 
     do m=1,nslvd
-       n = map(m)
+       !n = map(m)
        call pbuf_get_field(pbuf, pbf_idx, tmpptr, start=(/1,1,m/), kount=(/ pcols,pver,1 /))
-       q(:ncol,:,n) = tmpptr(:ncol,:)
+       q(:ncol,:,m) = tmpptr(:ncol,:)
     enddo
 
   endsubroutine get_short_lived_species
