@@ -535,7 +535,8 @@ contains
     ! The GEOS-Chem grids on every "chunk" will all be the same size, otherwise
     ! the possibility of differently-sized chunks will become a huge headache
     nX = 1
-    nY = MaxVal(ncol)
+    !nY = MaxVal(ncol)
+    nY = pcols
     nZ = nlev
 
     !! Add short lived speies to buffers
@@ -1176,8 +1177,9 @@ contains
     integer      :: currYMD, currHMS, currHr, currMn, currSc
     real(f4)     :: currUTC
 
-    logical      :: rootChunk
-    integer      :: RC
+    integer, save :: istep=0
+    logical       :: rootChunk
+    integer       :: RC
 
     ! Here's where you'll call DO_CHEMISTRY
     ! NOTE: State_Met etc are in an ARRAY - so we will want to always pass
@@ -1190,6 +1192,9 @@ contains
   
     ! Am I the first chunk on the first CPU?
     rootChunk = ( masterproc.and.(lchnk==begchunk) )
+
+    ! Count the number of steps which have passed
+    if (lchnk.eq.begchunk) istep = istep + 1
 
     ! Need to update the timesteps throughout the code
     call gc_update_timesteps(dt)
