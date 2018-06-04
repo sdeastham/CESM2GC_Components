@@ -96,7 +96,11 @@ module chemistry
   integer :: iH2O, iO3, iCH4, iCO
 
   ! Indices in the physics buffer
-  integer :: ndx_pblh
+  integer :: ndx_pblh       ! PBL height [m]
+  integer :: ndx_fsds       ! Downward shortwave flux at surface [W/m2]
+  integer :: ndx_cldtop     ! Cloud top height [?]
+  integer :: ndx_cldfrc     ! Cloud fraction [?]
+  integer :: ndx_prain      ! Rain production rate [?]
 
 !================================================================================================
 contains
@@ -982,7 +986,11 @@ contains
     iO3  = Ind_('O3' )
 
     ! Get indices for physical fields in physics buffer
-    ndx_pblh    = pbuf_get_index('pblh')
+    ndx_pblh    = pbuf_get_index('pblh'  )
+    ndx_fsds    = pbuf_get_index('FSDS'  )
+    ndx_cldtop  = pbuf_get_index('CLDTOP')
+    ndx_cldfrc  = pbuf_get_index('CLD'   )
+    ndx_prain   = pbuf_get_index('PRAIN' )
 
     ! Add all species as output fields if desired
     do i=1,ntracers
@@ -1080,6 +1088,8 @@ contains
     use gc_grid_mod,      only: Area_M2
     use cmn_size_mod,     only: ptop
 
+    use tropopause,       only: tropopause_findChemTrop, tropopause_find
+
     ! For calculating SZA
     use orbit,            only: zenith
     use time_manager,     only: get_curr_calday
@@ -1123,7 +1133,11 @@ contains
          csza,      &                                      ! cosine of solar zenith angles
          zsurf, &                                          ! surface height (m)
          rlats, rlons                                      ! chunk latitudes and longitudes (radians)
-    real(r8), pointer :: pblh(:)                           ! PBL height on each chunk
+    real(r8), pointer :: pblh(:)                           ! PBL height on each chunk [m]
+    real(r8), pointer :: cldtop(:)                         ! Cloud top height
+    real(r8), pointer :: cldfrc(:,:)                       ! Cloud fraction
+    real(r8), pointer :: fsds(:)                           ! Downward shortwave flux at surface [W/m2]
+    real(r8), pointer :: prain(:)                          ! Rain production rate
     real(r8) :: relhum(state%ncol,pver)                          ! Relative humidity (0-1)
     real(r8) :: satv(  state%ncol,pver)                            ! Work arrays
     real(r8) :: satq(  state%ncol,pver)                            ! Work arrays 
@@ -1134,6 +1148,15 @@ contains
     integer      :: imaxloc(1)
 
     real(r8)     :: col_area(state%ncol)
+
+    ! Intermediate arrays
+    integer      :: trop_lev(pcols)
+    real(r8)     :: trop_p(  pcols)
+    real(r8)     :: trop_T(  pcols)
+    real(r8)     :: trop_ht( pcols)
+    real(r8)     :: snowdepth(pcols)
+    real(r8)     :: z0(pcols)
+    real(r8)     :: sd_ice, sd_lnd, sd_avg, frc_ice
  
     ! Calculating SZA
     real(r8)     :: calday
@@ -1257,7 +1280,11 @@ contains
     !call outfld( 'SZA',   sza,    ncol, lchnk )
 
     ! Get PBL height (m)
-    call pbuf_get_field(pbuf, ndx_pblh, pblh)
+    call pbuf_get_field(pbuf, ndx_pblh,     pblh   )
+    call pbuf_get_field(pbuf, ndx_prain,    prain  )
+    call pbuf_get_field(pbuf, ndx_fsds,     fsds   )
+    call pbuf_get_field(pbuf, ndx_cldtop,   cldtop )
+    call pbuf_get_field(pbuf, ndx_cldfrc,   cldfrc )
 
     ! Get VMR and MMR of H2O
     h2ovmr = 0.0e0_fp
@@ -1278,6 +1305,40 @@ contains
        relhum(j,l) = 0.622e+0_r8 * h2ovmr(j,l) / satq(j,l)
        relhum(j,l) = max( 0.0e+0_r8, min( 1.0e+0_r8, relhum(j,l) ) )
     end do
+    end do
+
+    ! Estimate roughness height VERY roughly
+    z0 = 0.0e+0_r8
+    do i=1,ncol 
+       if (cam_in%landfrac(i).ge.0.5e+0_r8) then
+          z0(i) = 0.035e+0_r8
+       else
+          z0(i) = 0.0001e+0_r8
+       end if
+    end do
+
+    ! Retrieve tropopause level
+    trop_lev = 0.0e+0_r8
+    call tropopause_findChemTrop(state, trop_lev)
+    ! Back out the pressure
+    trop_p = 1000.0e+0_r8
+    do i=1,ncol
+       trop_p(i) = state%pmid(i,trop_lev(i)) * 0.01e+0_r8
+    end do
+
+    ! Calculate snow depth
+    snowdepth = 0.0e+0_r8
+    do i=1,ncol
+    !real(r8)     :: sd_ice, sd_lnd, frc_ice
+       sd_ice  = max(0.0e+0_r8,cam_in%snowhice(i))
+       sd_lnd  = max(0.0e+0_r8,cam_in%snowhland(i))
+       frc_ice = max(0.0e+0_r8,cam_in%icefrac(i))
+       if (frc_ice > 0.0e+0_r8) then
+          sd_avg = (sd_lnd*(1.0e+0_r8 - frc_ice)) + (sd_ice * frc_ice)
+       else
+          sd_avg = sd_lnd
+       end if
+       snowdepth(i) = sd_avg
     end do
 
     ! << === INCLUDES_BEFORE_RUN === >>
@@ -1308,10 +1369,10 @@ contains
     State_Met(lchnk)%SLP              (1,:) = state%ps(:)*0.01e+0_fp
     State_Met(lchnk)%TS               (1,:) = cam_in%ts(:)
     State_Met(lchnk)%TSKIN            (1,:) = cam_in%ts(:)
-    State_Met(lchnk)%SWGDN            (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%SWGDN            (1,:) = fsds(:)
     State_Met(lchnk)%TO3              (1,:) = 300.0e+0_fp ! Dummy value
-    State_Met(lchnk)%SNODP            (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%SNOMAS           (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%SNODP            (1,:) = snowdepth(:)
+    State_Met(lchnk)%SNOMAS           (1,:) = snowdepth(:) * 1000.0e+0_r8 ! m -> kg/m2 for ice w/rho ~ 1000 kg/m3
     State_Met(lchnk)%SUNCOS           (1,:) = csza(:)
     State_Met(lchnk)%SUNCOSmid        (1,:) = csza(:)
     State_Met(lchnk)%U10M             (1,:) = state%u(:,nZ) 
@@ -1392,7 +1453,11 @@ contains
     State_Met(lchnk)%OPTD =  State_Met(lchnk)%TAUCLI + State_Met(lchnk)%TAUCLW
 
     ! Nullify all pointers
-    Nullify(pblh)
+    Nullify(pblh   )
+    Nullify(fsds   )
+    Nullify(prain  )
+    Nullify(cldtop )
+    Nullify(cldfrc )
     ! << === INCLUDES_BEFORE_RUN === >> 
 
     ! Eventually initialize/reset wetdep
