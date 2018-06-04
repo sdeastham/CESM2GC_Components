@@ -1080,6 +1080,7 @@ contains
     ! For calculating SZA
     use orbit,            only: zenith
     use time_manager,     only: get_curr_calday
+    use time_manager,     only: get_curr_date
 
     ! Calculating relative humidity
     use wv_saturation,    only: qsat
@@ -1144,6 +1145,10 @@ contains
     real(r8)     :: mmr_min, mmr_max
 
     real(r8)     :: slsdata(state%ncol,pver,nsls)
+
+    integer      :: currYr, currMo, currDy, currTOD
+    integer      :: currYMD, currHMS, currHr, currMn, currSc
+    real(f4)     :: currUTC
 
     logical      :: rootChunk
     integer      :: RC
@@ -1393,18 +1398,39 @@ contains
        If (rc.ne.GC_SUCCESS) Call endrun('Failed to set up wet scavenging')
     ENDIF
 
+    ! Determine current date and time
+    call get_curr_date(currYr,currMo,currDy,currTOD)
+    ! For now, force year to be 2000
+    currYr = 2000
+    currYMD = (currYr*1000) + (currMo*100) + (currDy)
+    ! Deal with subdaily
+    currUTC = real(currTOD,f4)/3600.0e+0_f4
+    currSc = 0
+    currMn = 0
+    currHr = 0
+    do while (currTOD > 3600)
+       currTOD = currTOD - 3600
+       currHr = currHr + 1
+    end do
+    do while (currTOD > 60)
+       currTOD = currTOD - 60
+       currMn = currMn + 1
+    end do
+    currSc = currTOD
+    currHMS = (currHr*1000) + (currMn*100) + (currSc)
+
     ! Pass time values obtained from the ESMF environment to GEOS-Chem
     CALL Accept_External_Date_Time( am_I_Root      = rootChunk,  &
-                                    value_NYMD     = 20000101,   &  
-                                    value_NHMS     = 0000,       &  
-                                    value_YEAR     = 2000,       &  
-                                    value_MONTH    = 01,         &  
-                                    value_DAY      = 01,         &  
-                                    value_DAYOFYR  = 001,        &  
-                                    value_HOUR     = 00,         &  
-                                    value_MINUTE   = 00,         &  
+                                    value_NYMD     = currYMD,    &  
+                                    value_NHMS     = currHMS,    &  
+                                    value_YEAR     = currYr,     &  
+                                    value_MONTH    = currMo,     &  
+                                    value_DAY      = currDy,     &  
+                                    value_DAYOFYR  = int(floor(calday)), &
+                                    value_HOUR     = currHr,     &  
+                                    value_MINUTE   = currMn,     &  
                                     value_HELAPSED = 0.0e+0_f4,  & 
-                                    value_UTC      = 0.0e+0_f4,  &
+                                    value_UTC      = currUTC,    &
                                     RC             = RC         )
     If (rc.ne.GC_SUCCESS) Call endrun('Failed to update time in GEOS-Chem')
 
