@@ -1349,14 +1349,14 @@ contains
     ! << === INCLUDES_BEFORE_RUN === >>
     State_Met(lchnk)%ALBD             (1,:) = cam_in%asdir(:)
     State_Met(lchnk)%CLDFRC           (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%EFLUX            (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%HFLUX            (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%FRCLND           (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%FRLAND           (1,:) = 1.0e+0_fp - cam_in%ocnfrac(:)
-    State_Met(lchnk)%FROCEAN          (1,:) = cam_in%ocnfrac(:)
+    State_Met(lchnk)%EFLUX            (1,:) = cam_in%lhf(:)
+    State_Met(lchnk)%HFLUX            (1,:) = cam_in%shf(:)
+    State_Met(lchnk)%FRCLND           (1,:) = 0.0e+0_fp ! Olson land fraction
+    State_Met(lchnk)%FRLAND           (1,:) = cam_in%landfrac(:)
+    State_Met(lchnk)%FROCEAN          (1,:) = cam_in%ocnfrac(:) + cam_in%icefrac(:)
+    State_Met(lchnk)%FRSEAICE         (1,:) = cam_in%icefrac(:)
     State_Met(lchnk)%FRLAKE           (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%FRLANDIC         (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%PHIS             (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%GWETROOT         (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%GWETTOP          (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%LAI              (1,:) = 0.0e+0_fp 
@@ -1364,11 +1364,11 @@ contains
     State_Met(lchnk)%PARDF            (1,:) = 0.0e+0_fp 
     State_Met(lchnk)%PBLH             (1,:) = pblh(:ncol)
     State_Met(lchnk)%PHIS             (1,:) = state%phis(:)
-    State_Met(lchnk)%PRECANV          (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%PRECCON          (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%PRECLSC          (1,:) = 0.0e+0_fp  
-    State_Met(lchnk)%PRECTOT          (1,:) = 0.0e+0_fp 
-    State_Met(lchnk)%TROPP            (1,:) = 150.0e+0_fp
+    State_Met(lchnk)%PRECANV          (1,:) = 0.0e+0_fp                           ! Not used
+    State_Met(lchnk)%PRECCON          (1,:) = cam_out%precc(:)                    ! Convective precip
+    State_Met(lchnk)%PRECLSC          (1,:) = cam_out%precl(:)                    ! "Stratiform" precip
+    State_Met(lchnk)%PRECTOT          (1,:) = cam_out%precc(:) + cam_out%precl(:) ! All precip
+    State_Met(lchnk)%TROPP            (1,:) = trop_p(:)
     State_Met(lchnk)%PS1_WET          (1,:) = state%ps(:)*0.01e+0_fp
     State_Met(lchnk)%PS2_WET          (1,:) = state%ps(:)*0.01e+0_fp
     State_Met(lchnk)%SLP              (1,:) = state%ps(:)*0.01e+0_fp
@@ -1381,7 +1381,7 @@ contains
     State_Met(lchnk)%SUNCOS           (1,:) = csza(:)
     State_Met(lchnk)%SUNCOSmid        (1,:) = csza(:)
     State_Met(lchnk)%U10M             (1,:) = state%u(:,nZ) 
-    State_Met(lchnk)%USTAR            (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%USTAR            (1,:) = cam_in%ustar(:)
     State_Met(lchnk)%V10M             (1,:) = state%v(:,nZ)
     State_Met(lchnk)%Z0               (1,:) = 0.0e+0_fp 
 
