@@ -1413,9 +1413,15 @@ contains
        snowdepth(i) = sd_avg
     end do
 
+    ! Estimate 2D cloud fraction (pessimistic assumption)
+    cld2d = 0.0e+0_r8
+    do i=1,ncol
+       cld2d(i) = maxval(cldfrc(i,:))
+    end do
+
     ! << === INCLUDES_BEFORE_RUN === >>
     State_Met(lchnk)%ALBD             (1,:) = cam_in%asdir(:)
-    State_Met(lchnk)%CLDFRC           (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%CLDFRC           (1,:) = cld2d(:)
     State_Met(lchnk)%EFLUX            (1,:) = cam_in%lhf(:)
     State_Met(lchnk)%HFLUX            (1,:) = cam_in%shf(:)
     State_Met(lchnk)%FRCLND           (1,:) = 0.0e+0_fp ! Olson land fraction
@@ -1481,16 +1487,9 @@ contains
     State_Met(lchnk)%PS1_DRY (:,:) = 0.0e+0_fp
     State_Met(lchnk)%PS2_DRY (:,:) = 0.0e+0_fp
 
-    ! Calculate CLDTOPS (highest location of CMFMC in the column)
-    i = 1
+    ! Convert cldtop from real to integer
     Do j=1,nY
-       State_Met(lchnk)%CldTops(I,J) = 1
-       Do l = nZ, 1, -1
-          If ( State_Met(lchnk)%CMFMC(i,j,l) > 0.0e+0_fp ) Then
-             State_Met(lchnk)%CldTops(i,j) = l + 1
-             Exit
-          End If
-       End Do
+       State_Met(lchnk)%CldTops(1,J) = nZ + 1 - nint(cldtop(j))
     End Do
 
     ! Three-dimensional fields on level centers
