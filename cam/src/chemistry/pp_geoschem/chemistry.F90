@@ -6,8 +6,8 @@ module chemistry
   use shr_kind_mod,        only: r8 => shr_kind_r8
   use physics_types,       only: physics_state, physics_ptend, physics_ptend_init
   use ppgrid,              only: begchunk, endchunk, pcols
-  use ppgrid,              only: pver
-  use constituents,        only: pcnst, cnst_add
+  use ppgrid,              only: pver, pverp
+  use constituents,        only: pcnst, cnst_add, cnst_get_ind
   !use mo_gas_phase_chemdr, only: map2chm
   !use mo_constants,        only: pi
   use shr_const_mod,       only: molw_dryair=>SHR_CONST_MWDAIR
@@ -98,9 +98,17 @@ module chemistry
   ! Indices in the physics buffer
   integer :: ndx_pblh       ! PBL height [m]
   integer :: ndx_fsds       ! Downward shortwave flux at surface [W/m2]
-  integer :: ndx_cldtop     ! Cloud top height [?]
-  integer :: ndx_cldfrc     ! Cloud fraction [?]
-  integer :: ndx_prain      ! Rain production rate [?]
+  integer :: ndx_cldtop     ! Cloud top height [index]
+  integer :: ndx_cldfrc     ! Cloud fraction [-]
+  integer :: ndx_prain      ! Stratiform total precip. production rate [kg/kg/s]
+  integer :: ndx_nevapr     ! Total rate of precipitation evaporation  [kg/kg/s]
+  integer :: ndx_rprdtot    ! Convective total precip. production rate [kg/kg/s]
+  integer :: ndx_lsflxprc   ! Large-scale precip. at interface (liq + snw) [kg/m2/s]
+  integer :: ndx_lsflxsnw   ! Large-scale precip. at interface (snow only) [kg/m2/s]
+
+  ! Get constituent indices
+  integer :: ixcldliq
+  integer :: ixcldice
 
 !================================================================================================
 contains
@@ -739,9 +747,9 @@ contains
     Input_Opt%LNLPBL                 = .False.
 
     ! Now READ_DEPOSITION_MENU
-    ! Disable dry/wet dep for now
+    ! Disable dry dep for now
     Input_Opt%LDryD                  = .False.
-    Input_Opt%LWetD                  = .False.
+    Input_Opt%LWetD                  = .True.
     Input_Opt%Use_Olson_2001         = .True.
 
     ! Read in data for Linoz. All CPUs allocate one array to hold the data. Only
@@ -987,11 +995,19 @@ contains
     iO3  = Ind_('O3' )
 
     ! Get indices for physical fields in physics buffer
-    ndx_pblh    = pbuf_get_index('pblh'  )
-    ndx_fsds    = pbuf_get_index('FSDS'  )
-    ndx_cldtop  = pbuf_get_index('CLDTOP')
-    ndx_cldfrc  = pbuf_get_index('CLD'   )
-    ndx_prain   = pbuf_get_index('PRAIN' )
+    ndx_pblh     = pbuf_get_index('pblh'     )
+    ndx_fsds     = pbuf_get_index('FSDS'     )
+    ndx_cldtop   = pbuf_get_index('CLDTOP'   )
+    ndx_cldfrc   = pbuf_get_index('CLD'      )
+    ndx_prain    = pbuf_get_index('PRAIN'    )
+    ndx_nevapr   = pbuf_get_index('NEVAPR'   )
+    ndx_rprdtot  = pbuf_get_index('RPRDTOT'  )
+    ndx_lsflxprc = pbuf_get_index('LS_FLXPRC')
+    ndx_lsflxsnw = pbuf_get_index('LS_FLXSNW')
+
+    ! Get cloud water indices
+    call cnst_get_ind('CLDLIQ', ixcldliq)
+    call cnst_get_ind('CLDICE', ixcldice)
 
     ! Add all species as output fields if desired
     do i=1,ntracers
@@ -1069,7 +1085,7 @@ contains
 
   subroutine chem_timestep_tend( state, ptend, cam_in, cam_out, dt, pbuf,  fh2o )
 
-    use physics_buffer,   only: physics_buffer_desc, pbuf_get_field
+    use physics_buffer,   only: physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
     use cam_history,      only: outfld
     use camsrfexch,       only: cam_in_t, cam_out_t
 
@@ -1108,7 +1124,7 @@ contains
     use short_lived_species, only : set_short_lived_species
 
     ! Use GEOS-Chem versions of physical constants
-    use physconstants,  only : pi, pi_180
+    use physconstants,  only : pi, pi_180, g0
 
     real(r8),            intent(in)    :: dt          ! time step
     type(physics_state), intent(in)    :: state       ! Physics state variables
@@ -1135,10 +1151,15 @@ contains
          zsurf, &                                          ! surface height (m)
          rlats, rlons                                      ! chunk latitudes and longitudes (radians)
     real(r8), pointer :: pblh(:)                           ! PBL height on each chunk [m]
-    real(r8), pointer :: cldtop(:)                         ! Cloud top height
-    real(r8), pointer :: cldfrc(:,:)                       ! Cloud fraction
+    real(r8), pointer :: cldtop(:)                         ! Cloud top height [?]
+    real(r8), pointer :: cldfrc(:,:)                       ! Cloud fraction [-]
     real(r8), pointer :: fsds(:)                           ! Downward shortwave flux at surface [W/m2]
-    real(r8), pointer :: prain(:)                          ! Rain production rate
+    real(r8), pointer :: prain(:,:)                        ! Total stratiform precip. prod. (rain + snow) [kg/kg/s]
+    real(r8), pointer :: rprdtot(:,:)                      ! Total convective precip. prod. (rain + snow) [kg/kg/s]
+    real(r8), pointer :: nevapr(:,:)                       ! Evaporation of total precipitation (rain + snow) [kg/kg/s]
+    real(r8), pointer :: lsflxprc(:,:)                     ! Large-scale downward precip. flux at interface (rain + snow) [kg/m2/s] 
+    real(r8), pointer :: lsflxsnw(:,:)                     ! Large-scale downward precip. flux at interface (snow only) [kg/m2/s] 
+
     real(r8) :: relhum(state%ncol,pver)                          ! Relative humidity (0-1)
     real(r8) :: satv(  state%ncol,pver)                            ! Work arrays
     real(r8) :: satq(  state%ncol,pver)                            ! Work arrays 
@@ -1156,8 +1177,20 @@ contains
     real(r8)     :: trop_T(  pcols)
     real(r8)     :: trop_ht( pcols)
     real(r8)     :: snowdepth(pcols)
+    real(r8)     :: cld2d(pcols)
     real(r8)     :: z0(pcols)
     real(r8)     :: sd_ice, sd_lnd, sd_avg, frc_ice
+
+    ! Estimating cloud optical depth
+    real(r8)     :: lwc(pcols,pver)
+    real(r8)     :: iwc(pcols,pver)
+    real(r8)     :: lwp(pcols,pver)
+    real(r8)     :: iwp(pcols,pver)
+    real(r8)     :: cldliq(pcols,pver)
+    real(r8)     :: cldice(pcols,pver)
+    real(r8)     :: taucli(pcols,pver)
+    real(r8)     :: tauclw(pcols,pver)
+    real(r8)     :: localMult
  
     ! Calculating SZA
     real(r8)     :: calday
@@ -1177,6 +1210,7 @@ contains
     integer      :: currYMD, currHMS, currHr, currMn, currSc
     real(f4)     :: currUTC
 
+    integer       :: tim_ndx
     integer, save :: istep=0
     logical       :: rootChunk
     integer       :: RC
@@ -1284,12 +1318,17 @@ contains
     call zenith( calday, rlats, rlons, csza, ncol )
     !call outfld( 'SZA',   sza,    ncol, lchnk )
 
-    ! Get PBL height (m)
+    ! Get all required data from physics buffer
+    tim_ndx = pbuf_old_tim_idx()
     call pbuf_get_field(pbuf, ndx_pblh,     pblh   )
-    call pbuf_get_field(pbuf, ndx_prain,    prain  )
     call pbuf_get_field(pbuf, ndx_fsds,     fsds   )
     call pbuf_get_field(pbuf, ndx_cldtop,   cldtop )
-    call pbuf_get_field(pbuf, ndx_cldfrc,   cldfrc )
+    call pbuf_get_field(pbuf, ndx_cldfrc,   cldfrc,   start=(/1,1,tim_ndx/), kount=(/ncol,pver,1/) )
+    call pbuf_get_field(pbuf, ndx_nevapr,   nevapr,   start=(/1,1/),         kount=(/ncol,pver/))
+    call pbuf_get_field(pbuf, ndx_prain,    prain,    start=(/1,1/),         kount=(/ncol,pver/))
+    call pbuf_get_field(pbuf, ndx_rprdtot,  rprdtot,  start=(/1,1/),         kount=(/ncol,pver/))
+    call pbuf_get_field(pbuf, ndx_lsflxprc, lsflxprc, start=(/1,1/),         kount=(/ncol,pverp/))
+    call pbuf_get_field(pbuf, ndx_lsflxsnw, lsflxsnw, start=(/1,1/),         kount=(/ncol,pverp/))
 
     ! Get VMR and MMR of H2O
     h2ovmr = 0.0e0_fp
@@ -1320,6 +1359,34 @@ contains
        else
           z0(i) = 0.0001e+0_r8
        end if
+    end do
+
+    ! Esimate cloud liquid water content and OD
+    cldliq = 0.0e+0_r8
+    cldice = 0.0e+0_r8
+    taucli = 0.0e+0_r8
+    tauclw = 0.0e+0_r8
+    lwc    = 0.0e+0_r8
+    iwc    = 0.0e+0_r8
+    lwp    = 0.0e+0_r8
+    iwp    = 0.0e+0_r8
+    ! Note: all using CAM vertical convention (1 = TOA)
+    ! Calculation is based on that done for MOZART
+    do i=1,ncol
+       do k=nZ,1,-1
+          ! In-cloud water content (kg/kg)
+          cldliq(i,k) = state%q(i,k,ixcldliq)
+          cldice(i,k) = state%q(i,k,ixcldice)
+          ! Conversion to "cloud water" (g/?)
+          lwc(i,k) = (cldliq(i,k) * state%pmid(i,k)/(state%T(i,j)*287.0e+0_r8)) * 1000.0e+0_r8
+          iwc(i,k) = (cldice(i,k) * state%pmid(i,k)/(state%T(i,j)*287.0e+0_r8)) * 1000.0e+0_r8
+          ! Liquid water path/ice water path
+          localMult = (state%pint(i,k+1)-state%pint(i,k))*1.0e+3_r8/(cldfrc(i,k)*g0)
+          lwp(i,k) = lwc(i,k)*localMult
+          iwp(i,k) = iwc(i,k)*localMult
+          tauclw(i,k) = lwp(i,k) * 0.155e+0_r8 * (cldfrc(i,k)**2)
+          taucli(i,k) = iwp(i,k) * 0.155e+0_r8 * (cldfrc(i,k)**2)
+       end do
     end do
 
     ! Retrieve tropopause level
@@ -1401,11 +1468,11 @@ contains
     ! Three-dimensional fields on level edges
     do j=1,nY
     do l=1,nZ+1 
-       State_Met(lchnk)%CMFMC   (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%PFICU   (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%PFILSAN (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%PFLCU   (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%PFLLSAN (1,j,l)        = 0.0e+0_fp 
+       State_Met(lchnk)%CMFMC   (1,j,l)        = 0.0e+0_fp ! Needed for convection only 
+       State_Met(lchnk)%PFICU   (1,j,l)        = 0.0e+0_fp ! Needed for convection only 
+       State_Met(lchnk)%PFLCU   (1,j,l)        = 0.0e+0_fp ! Needed for convection only  
+       State_Met(lchnk)%PFILSAN (1,j,l)        = lsflxsnw(j,nZ+2-l) ! kg/m2/s
+       State_Met(lchnk)%PFLLSAN (1,j,l)        = max(0.0e+0_fp,lsflxprc(j,nZ+2-l) - lsflxsnw(j,nZ+2-l)) ! kg/m2/s
        State_Met(lchnk)%PEDGE   (1,j,l)        = state%pint(j,nZ+2-l)*0.01e+0_fp
     end do
     end do
@@ -1432,17 +1499,17 @@ contains
        State_Met(lchnk)%U       (1,j,l)        = state%u(j,nZ+1-l)
        State_Met(lchnk)%V       (1,j,l)        = state%v(j,nZ+1-l)
        !State_Met(lchnk)%OMEGA   (1,j,l)        = state%omega(j,nZ+1-l)
-       State_Met(lchnk)%CLDF    (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%DTRAIN  (1,j,l)        = 0.0e+0_fp
-       State_Met(lchnk)%DQRCU   (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%DQRLSAN (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%QI      (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%QL      (1,j,l)        = 0.0e+0_fp 
+       State_Met(lchnk)%CLDF    (1,j,l)        = cldfrc(j,nZ+1-l)
+       State_Met(lchnk)%DTRAIN  (1,j,l)        = 0.0e+0_fp ! Used in convection
+       State_Met(lchnk)%DQRCU   (1,j,l)        = 0.0e+0_fp ! Used in convection 
+       State_Met(lchnk)%DQRLSAN (1,j,l)        = prain(j,nZ+1-l)  ! kg/kg/s
+       State_Met(lchnk)%QI      (1,j,l)        = cldice(j,nZ+1-l) ! kg ice / kg dry air
+       State_Met(lchnk)%QL      (1,j,l)        = cldliq(j,nZ+1-l) ! kg water / kg dry air
        State_Met(lchnk)%RH      (1,j,l)        = relhum(j,nZ+1-l) * 100.0e+0_fp 
-       State_Met(lchnk)%TAUCLI  (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%TAUCLW  (1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%REEVAPCN(1,j,l)        = 0.0e+0_fp 
-       State_Met(lchnk)%REEVAPLS(1,j,l)        = 0.0e+0_fp 
+       State_Met(lchnk)%TAUCLI  (1,j,l)        = taucli(j,nZ+1-l)
+       State_Met(lchnk)%TAUCLW  (1,j,l)        = tauclw(j,nZ+1-l)
+       State_Met(lchnk)%REEVAPCN(1,j,l)        = 0.0e+0_fp ! Used in convection
+       State_Met(lchnk)%REEVAPLS(1,j,l)        = nevapr(j,nZ+1-l) ! kg/kg/s
        State_Met(lchnk)%SPHU1   (1,j,l)        = qh2o(j,nZ+1-l) * 1.0e+3_fp ! g/kg
        State_Met(lchnk)%SPHU2   (1,j,l)        = qh2o(j,nZ+1-l) * 1.0e+3_fp ! g/kg
        State_Met(lchnk)%TMPU1   (1,j,l)        = state%t(j,nZ+1-l)
@@ -1458,11 +1525,15 @@ contains
     State_Met(lchnk)%OPTD =  State_Met(lchnk)%TAUCLI + State_Met(lchnk)%TAUCLW
 
     ! Nullify all pointers
-    Nullify(pblh   )
-    Nullify(fsds   )
-    Nullify(prain  )
-    Nullify(cldtop )
-    Nullify(cldfrc )
+    Nullify(pblh      )
+    Nullify(fsds      )
+    Nullify(prain     )
+    Nullify(lsflxsnw  )
+    Nullify(lsflxprc  )
+    Nullify(cldtop    )
+    Nullify(cldfrc    )
+    Nullify(nevapr    )
+    Nullify(rprdtot   )
     ! << === INCLUDES_BEFORE_RUN === >> 
 
     ! Eventually initialize/reset wetdep
