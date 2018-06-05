@@ -1456,7 +1456,7 @@ contains
     State_Met(lchnk)%U10M             (1,:) = state%u(:,nZ) 
     State_Met(lchnk)%USTAR            (1,:) = cam_in%ustar(:)
     State_Met(lchnk)%V10M             (1,:) = state%v(:,nZ)
-    State_Met(lchnk)%Z0               (1,:) = 0.0e+0_fp 
+    State_Met(lchnk)%Z0               (1,:) = z0(:)
 
     DO J=1,nY
     DO I=1,nX
