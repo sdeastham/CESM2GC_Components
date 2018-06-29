@@ -494,6 +494,8 @@ contains
 
     use state_chm_mod,    only: Ind_
 
+    use gc_emissions_mod, only: gc_emissions_init
+
     type(physics_state), intent(in):: phys_state(begchunk:endchunk)
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
@@ -1013,6 +1015,10 @@ contains
        call addfld( trim(spcname), (/ 'lev' /), 'A', 'mol/mol', trim(slslongnames(i))//' concentration')
        !call add_default ( trim(spcname),   1, ' ')
     end do
+
+    ! Initialize emissions interface (this will eventually handle HEMCO)
+    call gc_emissions_init
+
     !call addfld ( 'BCPI', (/'lev'/), 'A', 'mole/mole', trim('BCPI')//' mixing ratio' )
     !call add_default ( 'BCPI',   1, ' ')
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_INIT'
@@ -1764,6 +1770,8 @@ contains
     ! Special: cleans up after NDXX_Setup
     use Diag_mod,      only : cleanup_diag
  
+    use gc_emissions_mod, only: gc_emissions_final
+
     integer :: i, rc
     logical :: rootCPU
 
@@ -1787,6 +1795,9 @@ contains
     Call Cleanup_Strat_Chem
     Call Cleanup_UCX( masterproc )
     Call Cleanup_PBL_Mix
+
+    call gc_emissions_final
+
     ! Loop over each chunk and clean up the state variables
     Do i=begchunk,endchunk
        rootCPU = ((i.eq.begchunk) .and. MasterProc)
