@@ -983,6 +983,7 @@ contains
     iCH4 = Ind_('CH4')
     iCO  = Ind_('CO' )
     iO3  = Ind_('O3' )
+    iNO  = Ind_('NO' )
 
     ! Get indices for physical fields in physics buffer
     ndx_pblh     = pbuf_get_index('pblh'     )
@@ -1854,19 +1855,51 @@ contains
   subroutine chem_emissions( state, cam_in )
     use camsrfexch,       only: cam_in_t     
 
-    ! Arguments:
+    use physconstants,  only : pi, pi_180
 
+    ! Arguments:
     type(physics_state),    intent(in)    :: state   ! Physics state variables
     type(cam_in_t),         intent(inout) :: cam_in  ! import state
 
+    real(r8) :: rlats(state%ncol)
+    real(r8) :: rlons(state%ncol)
+    real(r8) :: dlat, dlon
+    real(r8) :: sflx(state%ncol,ntracers)
+
+    integer :: m,n,i
     integer :: lchnk, ncol
     logical :: rootChunk
+
+    logical,save :: first=.true.
 
     ! lchnk: which chunk we have on this process
     lchnk = state%lchnk
     ! ncol: number of atmospheric columns on this chunk
     ncol  = state%ncol
     rootChunk = (masterproc.and.(lchnk.eq.begchunk))
+
+    sflx(:,:) = 0.0e+0_r8
+    rlats(1:ncol) = state%lat(1:ncol)
+    rlons(1:ncol) = state%lon(1:ncol)
+
+    if (first) then
+    end if
+
+    ! Test: emit 1e-10 kg/m2/s of NO in a square around Europe
+    do m=1, pcnst
+       n = map2gc(m)
+       if ((n>0).and.(n==iNO)) then
+          sflx(:,n) = 0.0e+0_r8
+          do i=1,ncol
+             dlat = rlats(i) / real(pi_180,r8)
+             dlon = rlons(i) / real(pi_180,r8)
+             if ((dlat > 50.0e+0_r8).and.(dlat < 60.0e+0_r8).and.(dlon > -15.0e+0_r8).and.(dlon < 5.0e+0_r8)) then
+                sflx(i,n) = sflx(i,n) + 1.0e-10_r8
+             end if
+          end do
+          cam_in%cflx(:ncol,m) = cam_in%cflx(:ncol,m) + sflx(:ncol,n)
+       end if
+    end do
 
     if (rootChunk) write(iulog,'(a)') 'GCCALL CHEM_EMISSIONS'
 
