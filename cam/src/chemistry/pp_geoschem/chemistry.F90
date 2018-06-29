@@ -30,7 +30,24 @@ module chemistry
   use errcode_mod
 
   ! Exit routine in CAM
-  use cam_abortutils, only : endrun
+  use cam_abortutils,      only : endrun
+
+  use chem_mods,           only : ntracersmax
+  use chem_mods,           only : ntracers
+  use chem_mods,           only : tracernames
+  use chem_mods,           only : tracerlongnames
+  use chem_mods,           only : adv_mass
+  use chem_mods,           only : mwratio
+  use chem_mods,           only : ref_mmr
+  use chem_mods,           only : nslsmax
+  use chem_mods,           only : nsls    
+  use chem_mods,           only : slsnames
+  use chem_mods,           only : slslongnames
+  use chem_mods,           only : sls_ref_mmr
+  use chem_mods,           only : slsmwratio
+  use chem_mods,           only : map2gc
+  use chem_mods,           only : map2gc_sls
+  use chem_mods,           only : map2idx
 
   implicit none
   private
@@ -54,38 +71,11 @@ module chemistry
   public :: chem_emissions
   public :: chem_timestep_init
 
-  ! Private data
-  !===== SDE DEBUG =====
-  integer, parameter :: ntracersmax = 200    ! Must be equal to nadv_chem
-  integer            :: ntracers
-  character(len=255) :: tracernames(ntracersmax)
-  character(len=255) :: tracerlongnames(ntracersmax)
-  integer            :: indices(ntracersmax)
-  real(r8)           :: adv_mass(ntracersmax)
-  real(r8)           :: mwratio(ntracersmax)
-  real(r8)           :: ref_mmr(ntracersmax)
-
-  ! Short-lived species (i.e. not advected)
-  integer, parameter :: nslsmax = 500        ! UNadvected species only
-  integer            :: nsls    
-  character(len=255) :: slsnames(nslsmax)
-  character(len=255) :: slslongnames(nslsmax)
-  real(r8)           :: sls_ref_mmr(nslsmax)
-  real(r8)           :: slsmwratio(nslsmax)
-  !===== SDE DEBUG =====
-
   ! Location of valid input.geos
   character(len=500) :: inputGeosPath
 
   ! Location of chemistry input (for now)
   character(len=500) :: chemInputsDir
-
-  ! Mapping between constituents and GEOS-Chem tracers
-  integer :: map2gc(pcnst)
-  integer :: map2gc_sls(nslsmax)
-
-  ! Mapping from constituents to raw index
-  integer :: map2idx(pcnst)
 
   ! GEOS-Chem state variables
   Type(OptInput)                 :: Input_Opt
@@ -93,7 +83,7 @@ module chemistry
   Type(ChmState),Allocatable     :: State_Chm(:)
 
   ! Indices of critical species
-  integer :: iH2O, iO3, iCH4, iCO
+  integer :: iH2O, iO3, iCH4, iCO, iNO
 
   ! Indices in the physics buffer
   integer :: ndx_pblh       ! PBL height [m]
@@ -1038,8 +1028,7 @@ contains
 
     if (masterproc) write(iulog,'(a)') 'GCCALL CHEM_TIMESTEP_INIT'
 
-    ! This is when we want to update State_Met and so on
-    ! Note that here we have been passed MANY chunks
+    ! Not sure what we would realistically do here rather than in tend
 
   end subroutine chem_timestep_init
 

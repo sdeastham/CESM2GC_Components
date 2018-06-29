@@ -3,8 +3,33 @@
 ! ... Basic chemistry parameters and arrays
 !--------------------------------------------------------------
       use shr_kind_mod, only : r8 => shr_kind_r8
+      use constituents, only : pcnst
       implicit none
       save
+
+      integer, parameter :: ntracersmax = 200    ! Must be equal to nadv_chem
+      integer            :: ntracers
+      character(len=255) :: tracernames(ntracersmax)
+      character(len=255) :: tracerlongnames(ntracersmax)
+      real(r8)           :: adv_mass(ntracersmax)
+      real(r8)           :: mwratio(ntracersmax)
+      real(r8)           :: ref_mmr(ntracersmax)
+
+      ! Short-lived species (i.e. not advected)
+      integer, parameter :: nslsmax = 500        ! UNadvected species only
+      integer            :: nsls    
+      character(len=255) :: slsnames(nslsmax)
+      character(len=255) :: slslongnames(nslsmax)
+      real(r8)           :: sls_ref_mmr(nslsmax)
+      real(r8)           :: slsmwratio(nslsmax)
+
+      ! Mapping between constituents and GEOS-Chem tracers
+      integer :: map2gc(pcnst)
+      integer :: map2gc_sls(nslsmax)
+
+      ! Mapping from constituents to raw index
+      integer :: map2idx(pcnst)
+
       integer, parameter :: phtcnt = 40, & ! number of photolysis reactions
                             rxntot = 212, & ! number of total reactions
                             gascnt = 172, & ! number of gas phase reactions
@@ -32,7 +57,7 @@
       integer :: clsmap(gas_pcnst,5) = 0
       integer :: permute(gas_pcnst,5) = 0
       integer :: diag_map(clscnt4) = 0
-      real(r8) :: adv_mass(gas_pcnst) = 0._r8
+!      real(r8) :: adv_mass(gas_pcnst) = 0._r8
       real(r8) :: crb_mass(gas_pcnst) = 0._r8
       real(r8) :: fix_mass(max(1,nfs))
       real(r8), allocatable :: cph_enthalpy(:)
